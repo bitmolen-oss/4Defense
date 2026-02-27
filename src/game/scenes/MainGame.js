@@ -61,80 +61,43 @@ export class MainGame extends Phaser.Scene {
     // Stwórz obiekt Graphics do rysowania siatki
     this.gridGraphics = this.add.graphics();
     
-    // Ustaw bardzo jasny, kontrastowy kolor linii
-    this.gridGraphics.lineStyle(2, 0x00ff00, 0.8);
+    // Wywołaj metodę rysującą mapę
+    this.redrawMap();
     
-    // Rysuj siatkę izometryczną - używając ujednoliconego origin
-    for (let x = 0; x < this.mapSize; x++) {
-      for (let y = 0; y < this.mapSize; y++) {
-        // Oblicz środek kafelka WYŁĄCZNIE tak
-        const isoX = this.mapOriginX + (x - y) * this.halfW;
-        const isoY = this.mapOriginY + (x + y) * this.halfH;
-        
-        // Oblicz wierzchołki rombu względem isoX i isoY
-        const topX = isoX;
-        const topY = isoY - this.halfH;
-        
-        const rightX = isoX + this.halfW;
-        const rightY = isoY;
-        
-        const bottomX = isoX;
-        const bottomY = isoY + this.halfH;
-        
-        const leftX = isoX - this.halfW;
-        const leftY = isoY;
-        
-        // Pobierz typ kafelka
-        const tileType = this.mapGrid[y][x];
-        
-        // Ustaw styl rysowania w zależności od typu kafelka
-        switch (tileType) {
-          case 0: // Trawa
-            this.gridGraphics.lineStyle(2, 0x00ff00, 0.8); // Zielony kontur
-            break;
-          case 1: // Droga Zewnętrzna
-            this.gridGraphics.fillStyle(0x333333, 1); // Ciemnoszary wypełnienie
-            this.gridGraphics.lineStyle(1, 0x222222, 0.8); // Ciemniejszy szary kontur
-            break;
-          case 2: // Twierdza
-            this.gridGraphics.fillStyle(0xffd700, 1); // Złoty wypełnienie
-            this.gridGraphics.lineStyle(1, 0xffaa00, 0.8); // Ciemniejszy złoty kontur
-            break;
-          case 3: // Bramy
-            this.gridGraphics.fillStyle(0x0088ff, 1); // Jasnoniebieski wypełnienie
-            this.gridGraphics.lineStyle(1, 0x0066cc, 0.8); // Ciemniejszy niebieski kontur
-            break;
-          case 4: // Rdzeń
-            this.gridGraphics.fillStyle(0x800080, 1); // Fioletowy wypełnienie
-            this.gridGraphics.lineStyle(1, 0x600060, 0.8); // Ciemniejszy fioletowy kontur
-            break;
-          case 5: // Drogi Wewnętrzne
-            this.gridGraphics.fillStyle(0xaaaaaa, 1); // Jasnoszary wypełnienie
-            this.gridGraphics.lineStyle(1, 0x888888, 0.8); // Ciemniejszy szary kontur
-            break;
-          case 6: // Mury
-            this.gridGraphics.fillStyle(0x555555, 1); // Ciemnoszary/kamienny wypełnienie
-            this.gridGraphics.lineStyle(1, 0x333333, 0.8); // Ciemniejszy kamienny kontur
-            break;
-          default:
-            this.gridGraphics.lineStyle(2, 0x00ff00, 0.8); // Domyślny zielony
+    // Zmienna stanu trybu budowy
+    this.buildMode = false;
+    
+    // Obsługa klawisza B - przełączanie trybu budowy
+    this.input.keyboard.on('keydown-B', () => { 
+        this.buildMode = !this.buildMode; 
+        console.log("Tryb budowy: " + (this.buildMode ? "WŁĄCZONY" : "WYŁĄCZONY"));
+    });
+    
+    // Logika stawiania wieży 2x2 (myszka)
+    this.input.on('pointerdown', (pointer) => {
+        if (!pointer.leftButtonDown() || !this.buildMode) return;
+
+        if (this.hoverTileX !== -1 && this.hoverTileY !== -1) {
+            let tx = this.hoverTileX;
+            let ty = this.hoverTileY;
+
+            // Sprawdzamy, czy wieża 2x2 mieści się na mapie i czy wszystkie 4 kafelki to trawa (0)
+            if (tx + 1 < this.mapSize && ty + 1 < this.mapSize) {
+                if (this.mapGrid[ty][tx] === 0 && this.mapGrid[ty][tx+1] === 0 &&
+                    this.mapGrid[ty+1][tx] === 0 && this.mapGrid[ty+1][tx+1] === 0) {
+
+                    // Zmieniamy kafelki na wartość 10 (Wieża)
+                    this.mapGrid[ty][tx] = 10;
+                    this.mapGrid[ty][tx+1] = 10;
+                    this.mapGrid[ty+1][tx] = 10;
+                    this.mapGrid[ty+1][tx+1] = 10;
+
+                    // Odświeżamy mapę, żeby zobaczyć wieżę
+                    this.redrawMap();
+                }
+            }
         }
-        
-        // Narysuj romb (kafelek)
-        this.gridGraphics.beginPath();
-        this.gridGraphics.moveTo(topX, topY);
-        this.gridGraphics.lineTo(rightX, rightY);
-        this.gridGraphics.lineTo(bottomX, bottomY);
-        this.gridGraphics.lineTo(leftX, leftY);
-        this.gridGraphics.closePath();
-        
-        // Wypełnij i obrysuj
-        if (tileType !== 0) {
-          this.gridGraphics.fillPath();
-        }
-        this.gridGraphics.strokePath();
-      }
-    }
+    });
     
     // Stwórz obiekt do podświetlania kafelka
     this.hoverIndicator = this.add.graphics();
@@ -171,6 +134,149 @@ export class MainGame extends Phaser.Scene {
     console.log(`Origin mapy: (${this.mapOriginX}, ${this.mapOriginY})`);
     console.log(`Granice kamery: X=${minX}, Y=${minY}, W=${boundWidth}, H=${boundHeight}`);
     console.log(`Środek kamery: (${centerX}, ${centerY})`);
+  }
+
+  drawIsoBlock(graphics, isoX, isoY, height, colorTop, colorLeft, colorRight) {
+    const halfW = this.halfW;
+    const halfH = this.halfH;
+    // Punkty bazy (na ziemi)
+    const bottomX = isoX;
+    const bottomY = isoY + halfH;
+    const leftX = isoX - halfW;
+    const leftY = isoY;
+    const rightX = isoX + halfW;
+    const rightY = isoY;
+    // Punkty dachu (przesunięte w górę o 'height')
+    const topTopX = isoX;
+    const topTopY = isoY - halfH - height;
+    const topRightX = isoX + halfW;
+    const topRightY = isoY - height;
+    const topBottomX = isoX;
+    const topBottomY = isoY + halfH - height;
+    const topLeftX = isoX - halfW;
+    const topLeftY = isoY - height;
+    // Lewa ściana
+    graphics.fillStyle(colorLeft, 1);
+    graphics.beginPath();
+    graphics.moveTo(topLeftX, topLeftY);
+    graphics.lineTo(topBottomX, topBottomY);
+    graphics.lineTo(bottomX, bottomY);
+    graphics.lineTo(leftX, leftY);
+    graphics.closePath();
+    graphics.fillPath();
+    graphics.strokePath();
+    // Prawa ściana
+    graphics.fillStyle(colorRight, 1);
+    graphics.beginPath();
+    graphics.moveTo(topBottomX, topBottomY);
+    graphics.lineTo(topRightX, topRightY);
+    graphics.lineTo(rightX, rightY);
+    graphics.lineTo(bottomX, bottomY);
+    graphics.closePath();
+    graphics.fillPath();
+    graphics.strokePath();
+    // Górna ściana (Dach)
+    graphics.fillStyle(colorTop, 1);
+    graphics.beginPath();
+    graphics.moveTo(topTopX, topTopY);
+    graphics.lineTo(topRightX, topRightY);
+    graphics.lineTo(topBottomX, topBottomY);
+    graphics.lineTo(topLeftX, topLeftY);
+    graphics.closePath();
+    graphics.fillPath();
+    graphics.strokePath();
+  }
+
+  redrawMap() {
+    // Wyczyść poprzednią mapę
+    this.gridGraphics.clear();
+    
+    // Rysuj siatkę izometryczną - używając ujednoliconego origin
+    for (let x = 0; x < this.mapSize; x++) {
+      for (let y = 0; y < this.mapSize; y++) {
+        // Oblicz środek kafelka WYŁĄCZNIE tak
+        const isoX = this.mapOriginX + (x - y) * this.halfW;
+        const isoY = this.mapOriginY + (x + y) * this.halfH;
+        
+        // Oblicz wierzchołki rombu względem isoX i isoY
+        const topX = isoX;
+        const topY = isoY - this.halfH;
+        
+        const rightX = isoX + this.halfW;
+        const rightY = isoY;
+        
+        const bottomX = isoX;
+        const bottomY = isoY + this.halfH;
+        
+        const leftX = isoX - this.halfW;
+        const leftY = isoY;
+        
+        // Pobierz typ kafelka
+        const tileType = this.mapGrid[y][x];
+        
+        // Flaga dla brył 3D
+        let is3D = false;
+        
+        // Ustaw styl rysowania w zależności od typu kafelka
+        switch (tileType) {
+          case 0: // Trawa
+            this.gridGraphics.lineStyle(2, 0x00ff00, 0.8); // Zielony kontur
+            break;
+          case 1: // Droga Zewnętrzna
+            this.gridGraphics.fillStyle(0x333333, 1); // Ciemnoszary wypełnienie
+            this.gridGraphics.lineStyle(1, 0x222222, 0.8); // Ciemniejszy szary kontur
+            break;
+          case 2: // Twierdza
+            this.gridGraphics.fillStyle(0xffd700, 1); // Złoty wypełnienie
+            this.gridGraphics.lineStyle(1, 0xffaa00, 0.8); // Ciemniejszy złoty kontur
+            break;
+          case 3: // Bramy
+            this.gridGraphics.fillStyle(0x0088ff, 1); // Jasnoniebieski wypełnienie
+            this.gridGraphics.lineStyle(1, 0x0066cc, 0.8); // Ciemniejszy niebieski kontur
+            break;
+          case 4: // Rdzeń
+            this.gridGraphics.fillStyle(0x800080, 1); // Fioletowy wypełnienie
+            this.gridGraphics.lineStyle(1, 0x600060, 0.8); // Ciemniejszy fioletowy kontur
+            break;
+          case 5: // Drogi Wewnętrzne
+            this.gridGraphics.fillStyle(0xaaaaaa, 1); // Jasnoszary wypełnienie
+            this.gridGraphics.lineStyle(1, 0x888888, 0.8); // Ciemniejszy szary kontur
+            break;
+          case 6: // Mury
+            this.gridGraphics.fillStyle(0x555555, 1); // Ciemnoszary/kamienny wypełnienie
+            this.gridGraphics.lineStyle(1, 0x333333, 0.8); // Ciemniejszy kamienny kontur
+            break;
+          case 10: // Wieża Standardowa (Ceglana/Pomarańczowa)
+            is3D = true;
+            // Wysokość = 2 kafelki
+            this.drawIsoBlock(this.gridGraphics, isoX, isoY, this.tileH * 2, 0xff9933, 0xcc6600, 0x994400);
+            break;
+          case 11: // Wieża Premium (Złoty monolit)
+            is3D = true;
+            // Wysokość = 2.5 kafelka (wyższa i smuklejsza)
+            this.drawIsoBlock(this.gridGraphics, isoX, isoY, this.tileH * 2.5, 0xffff66, 0xcccc00, 0x999900);
+            break;
+          default:
+            this.gridGraphics.lineStyle(2, 0x00ff00, 0.8); // Domyślny zielony
+        }
+        
+        // Rysuj płaski romb tylko dla nie-3D kafelków
+        if (!is3D) {
+          this.gridGraphics.beginPath();
+          this.gridGraphics.moveTo(topX, topY);
+          this.gridGraphics.lineTo(rightX, rightY);
+          this.gridGraphics.lineTo(bottomX, bottomY);
+          this.gridGraphics.lineTo(leftX, leftY);
+          this.gridGraphics.closePath();
+          
+          // Wypełnij i obrysuj
+          if (tileType !== 0) {
+            this.gridGraphics.fillPath();
+          }
+          this.gridGraphics.strokePath();
+        }
+      }
+    }
   }
 
   buildCentralFortress() {
