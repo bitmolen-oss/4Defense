@@ -30,10 +30,10 @@ export class MainGame extends Phaser.Scene {
 
     // Struktura Danych Mapy (Grid) - całość to trawa (wartość 0)
     this.mapGrid = [];
-    for (let x = 0; x < this.mapSize; x++) {
-      this.mapGrid[x] = [];
-      for (let y = 0; y < this.mapSize; y++) {
-        this.mapGrid[x][y] = 0; // 0 = trawa
+    for (let y = 0; y < this.mapSize; y++) {
+      this.mapGrid[y] = [];
+      for (let x = 0; x < this.mapSize; x++) {
+        this.mapGrid[y][x] = 0; // 0 = trawa
       }
     }
 
@@ -85,7 +85,7 @@ export class MainGame extends Phaser.Scene {
         const leftY = isoY;
         
         // Pobierz typ kafelka
-        const tileType = this.mapGrid[x][y];
+        const tileType = this.mapGrid[y][x];
         
         // Ustaw styl rysowania w zależności od typu kafelka
         switch (tileType) {
@@ -147,10 +147,17 @@ export class MainGame extends Phaser.Scene {
     // Zadeklaruj klawisze WASD
     this.keys = this.input.keyboard.addKeys('W,A,S,D');
     
-    // Nasłuchiwanie ESC
+    // Nasłuchiwanie ESC - pauza menu
     this.input.keyboard.on('keydown-ESC', () => {
         this.scene.pause();
         this.scene.launch('PauseMenu');
+    });
+
+    // Guzik wyjścia do Launchera (Poddanie gry) - klawisz Q
+    this.input.keyboard.on('keydown-Q', () => {
+        if (window.electronAPI && window.electronAPI.closeGame) {
+            window.electronAPI.closeGame();
+        }
     });
     
     // Wyliczenie środka izometrycznej mapy
@@ -171,7 +178,7 @@ export class MainGame extends Phaser.Scene {
     for (let x = 35; x <= 44; x++) {
       for (let y = 35; y <= 44; y++) {
         if (x >= 0 && x < this.mapSize && y >= 0 && y < this.mapSize) {
-          this.mapGrid[x][y] = 2; // 2 = Twierdza
+          this.mapGrid[y][x] = 2; // 2 = Twierdza
         }
       }
     }
@@ -190,44 +197,44 @@ export class MainGame extends Phaser.Scene {
 
     // KROK 3: Bramy (wartość 3). Nadpisz odpowiednie kafelki na środkach boków
     // Północna: X: 39-40, Y: 35
-    this.mapGrid[39][35] = 3;
-    this.mapGrid[40][35] = 3;
-    
-    // Południowa: X: 39-40, Y: 44
-    this.mapGrid[39][44] = 3;
-    this.mapGrid[40][44] = 3;
-    
-    // Zachodnia: X: 35, Y: 39-40
     this.mapGrid[35][39] = 3;
     this.mapGrid[35][40] = 3;
     
-    // Wschodnia: X: 44, Y: 39-40
+    // Południowa: X: 39-40, Y: 44
     this.mapGrid[44][39] = 3;
     this.mapGrid[44][40] = 3;
+    
+    // Zachodnia: X: 35, Y: 39-40
+    this.mapGrid[39][35] = 3;
+    this.mapGrid[40][35] = 3;
+    
+    // Wschodnia: X: 44, Y: 39-40
+    this.mapGrid[39][44] = 3;
+    this.mapGrid[40][44] = 3;
 
     // KROK 4: Drogi Wewnętrzne (wartość 5). Proste ścieżki łączące bramy z rdzeniem
     // Od Północy: X: 39-40, Y: 36-38
     for (let y = 36; y <= 38; y++) {
-      this.mapGrid[39][y] = 5;
-      this.mapGrid[40][y] = 5;
+      this.mapGrid[y][39] = 5;
+      this.mapGrid[y][40] = 5;
     }
     
     // Od Południa: X: 39-40, Y: 41-43
     for (let y = 41; y <= 43; y++) {
-      this.mapGrid[39][y] = 5;
-      this.mapGrid[40][y] = 5;
+      this.mapGrid[y][39] = 5;
+      this.mapGrid[y][40] = 5;
     }
     
     // Od Zachodu: X: 36-38, Y: 39-40
     for (let x = 36; x <= 38; x++) {
-      this.mapGrid[x][39] = 5;
-      this.mapGrid[x][40] = 5;
+      this.mapGrid[39][x] = 5;
+      this.mapGrid[40][x] = 5;
     }
     
     // Od Wschodu: X: 41-43, Y: 39-40
     for (let x = 41; x <= 43; x++) {
-      this.mapGrid[x][39] = 5;
-      this.mapGrid[x][40] = 5;
+      this.mapGrid[39][x] = 5;
+      this.mapGrid[40][x] = 5;
     }
 
     // KROK 5: Rdzeń (wartość 4). Kwadrat 2x2 na samym środku: X: 39 do 40, Y: 39 do 40
@@ -243,65 +250,43 @@ export class MainGame extends Phaser.Scene {
   }
 
   generateAllProceduralPaths() {
-    // Droga 1: Lewy-Górny (Północna Brama) - Poziomy Wąż
-    let q1y1 = Phaser.Math.Between(2, 6);
-    let q1x1 = Phaser.Math.Between(26, 30);
-    let q1y2 = Phaser.Math.Between(14, 18);
-    let q1x2 = Phaser.Math.Between(6, 10);
-    let q1y3 = Phaser.Math.Between(26, 30); // Zostawia bezpieczny dystans od muru (Y:35)
+    // Natywny generator losowy dla wyraźniejszych zmian układu
+    const getRnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    // Droga 1: Lewy-Górny (Północna Brama)
+    let q1xL = getRnd(4, 10);
+    let q1xR = getRnd(24, 30);
     this.drawThickPath([
-        {x: 0, y: q1y1}, 
-        {x: q1x1, y: q1y1}, 
-        {x: q1x1, y: q1y2}, 
-        {x: q1x2, y: q1y2}, 
-        {x: q1x2, y: q1y3}, 
-        {x: 39, y: q1y3}, 
-        {x: 39, y: 34}
+        {x: 0, y: 4}, {x: q1xR, y: 4}, {x: q1xR, y: 10}, 
+        {x: q1xL, y: 10}, {x: q1xL, y: 16}, {x: q1xR, y: 16}, 
+        {x: q1xR, y: 22}, {x: q1xL, y: 22}, {x: q1xL, y: 28}, 
+        {x: 39, y: 28}, {x: 39, y: 34} // Prostopadły finisz, zero styku z murem
     ]);
-    // Droga 2: Prawy-Górny (Wschodnia Brama) - Pionowy Wąż
-    let q2x1 = Phaser.Math.Between(72, 76);
-    let q2y1 = Phaser.Math.Between(26, 30);
-    let q2x2 = Phaser.Math.Between(60, 64);
-    let q2y2 = Phaser.Math.Between(6, 10);
-    let q2x3 = Phaser.Math.Between(48, 52); // Zostawia bezpieczny dystans od muru (X:44)
+    // Droga 2: Prawy-Górny (Wschodnia Brama)
+    let q2xL = getRnd(48, 54);
+    let q2xR = getRnd(68, 74);
     this.drawThickPath([
-        {x: q2x1, y: 0}, 
-        {x: q2x1, y: q2y1}, 
-        {x: q2x2, y: q2y1}, 
-        {x: q2x2, y: q2y2}, 
-        {x: q2x3, y: q2y2}, 
-        {x: q2x3, y: 39}, 
-        {x: 45, y: 39}
+        {x: 78, y: 4}, {x: q2xL, y: 4}, {x: q2xL, y: 10}, 
+        {x: q2xR, y: 10}, {x: q2xR, y: 16}, {x: q2xL, y: 16}, 
+        {x: q2xL, y: 22}, {x: q2xR, y: 22}, {x: q2xR, y: 39}, 
+        {x: 45, y: 39} // Prostopadły finisz z daleka
     ]);
-    // Droga 3: Lewy-Dolny (Zachodnia Brama) - Pionowy Wąż
-    let q3x1 = Phaser.Math.Between(4, 8);
-    let q3y1 = Phaser.Math.Between(48, 52);
-    let q3x2 = Phaser.Math.Between(16, 20);
-    let q3y2 = Phaser.Math.Between(68, 72);
-    let q3x3 = Phaser.Math.Between(28, 32); // Zostawia bezpieczny dystans od muru (X:35)
+    // Droga 3: Lewy-Dolny (Zachodnia Brama)
+    let q3yT = getRnd(48, 54);
+    let q3yB = getRnd(68, 74);
     this.drawThickPath([
-        {x: q3x1, y: 78}, 
-        {x: q3x1, y: q3y1}, 
-        {x: q3x2, y: q3y1}, 
-        {x: q3x2, y: q3y2}, 
-        {x: q3x3, y: q3y2}, 
-        {x: q3x3, y: 39}, 
-        {x: 34, y: 39}
+        {x: 4, y: 78}, {x: 4, y: q3yT}, {x: 10, y: q3yT}, 
+        {x: 10, y: q3yB}, {x: 16, y: q3yB}, {x: 16, y: q3yT}, 
+        {x: 22, y: q3yT}, {x: 22, y: q3yB}, {x: 28, y: q3yB}, 
+        {x: 28, y: 39}, {x: 34, y: 39} // Prostopadły finisz z daleka
     ]);
-    // Droga 4: Prawy-Dolny (Południowa Brama) - Poziomy Wąż
-    let q4y1 = Phaser.Math.Between(72, 76);
-    let q4x1 = Phaser.Math.Between(48, 52);
-    let q4y2 = Phaser.Math.Between(60, 64);
-    let q4x2 = Phaser.Math.Between(68, 72);
-    let q4y3 = Phaser.Math.Between(48, 52); // Zostawia bezpieczny dystans od muru (Y:44)
+    // Droga 4: Prawy-Dolny (Południowa Brama)
+    let q4yT = getRnd(48, 54);
+    let q4yB = getRnd(68, 74);
     this.drawThickPath([
-        {x: 78, y: q4y1}, 
-        {x: q4x1, y: q4y1}, 
-        {x: q4x1, y: q4y2}, 
-        {x: q4x2, y: q4y2}, 
-        {x: q4x2, y: q4y3}, 
-        {x: 39, y: q4y3}, 
-        {x: 39, y: 45}
+        {x: 74, y: 78}, {x: 74, y: q4yT}, {x: 68, y: q4yT}, 
+        {x: 68, y: q4yB}, {x: 62, y: q4yB}, {x: 62, y: q4yT}, 
+        {x: 56, y: q4yT}, {x: 56, y: q4yB}, {x: 39, y: q4yB}, 
+        {x: 39, y: 45} // Prostopadły finisz, zero styku z murem
     ]);
   }
 
@@ -391,8 +376,9 @@ export class MainGame extends Phaser.Scene {
     const tileX = Math.floor((dy / this.halfH + dx / this.halfW) / 2);
     const tileY = Math.floor((dy / this.halfH - dx / this.halfW) / 2);
     
-    // Warunek podświetlenia
+    // Sprawdź granice mapy
     if (tileX >= 0 && tileX < this.mapSize && tileY >= 0 && tileY < this.mapSize) {
+      const tileType = this.mapGrid[tileY][tileX];
       // Jeśli kafelek się zmienił, zaktualizuj podświetlenie
       if (tileX !== this.hoverTileX || tileY !== this.hoverTileY) {
         this.hoverTileX = tileX;

@@ -79,6 +79,10 @@ export class PauseMenu extends Phaser.Scene {
       exitButton.setStyle({ fill: '#ffffff' });
     })
     .on('pointerdown', () => {
+      // Twardy reset sceny przed wyjściem
+      this.scene.stop('MainGame'); // Zabija całkowicie stan mapy
+      this.scene.stop('PauseMenu'); // Zamyka menu pauzy
+      
       if (window.electronAPI && window.electronAPI.closeGame) {
         window.electronAPI.closeGame();
       } else {
