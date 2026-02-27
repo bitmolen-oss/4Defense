@@ -105,6 +105,10 @@ export class MainGame extends Phaser.Scene {
             this.gridGraphics.fillStyle(0xaaaaaa, 1); // Jasnoszary wypełnienie
             this.gridGraphics.lineStyle(1, 0x888888, 0.8); // Ciemniejszy szary kontur
             break;
+          case 6: // Mury
+            this.gridGraphics.fillStyle(0x555555, 1); // Ciemnoszary/kamienny wypełnienie
+            this.gridGraphics.lineStyle(1, 0x333333, 0.8); // Ciemniejszy kamienny kontur
+            break;
           default:
             this.gridGraphics.lineStyle(2, 0x00ff00, 0.8); // Domyślny zielony
         }
@@ -156,7 +160,7 @@ export class MainGame extends Phaser.Scene {
   }
 
   buildCentralFortress() {
-    // Twierdza (wartość 2): Kwadrat 10x10 od X: 35 do 44, Y: 35 do 44
+    // KROK 1: Cała twierdza 10x10 (X: 35-44, Y: 35-44) otrzymuje wartość 2 (Złoty)
     for (let x = 35; x <= 44; x++) {
       for (let y = 35; y <= 44; y++) {
         if (x >= 0 && x < this.mapSize && y >= 0 && y < this.mapSize) {
@@ -165,16 +169,19 @@ export class MainGame extends Phaser.Scene {
       }
     }
 
-    // Rdzeń (wartość 4): Kwadrat 2x2 na samym środku: X: 39 do 40, Y: 39 do 40
-    for (let x = 39; x <= 40; x++) {
-      for (let y = 39; y <= 40; y++) {
+    // KROK 2: Mury. Jeśli kafelek znajduje się na samym brzegu twierdzy, zmień na wartość 6
+    for (let x = 35; x <= 44; x++) {
+      for (let y = 35; y <= 44; y++) {
         if (x >= 0 && x < this.mapSize && y >= 0 && y < this.mapSize) {
-          this.mapGrid[x][y] = 4; // 4 = Rdzeń
+          // Sprawdź czy to brzeg twierdzy
+          if (x === 35 || x === 44 || y === 35 || y === 44) {
+            this.mapGrid[x][y] = 6; // 6 = Mur
+          }
         }
       }
     }
 
-    // Bramy (wartość 3): 4 wejścia 2x1 na brzegach twierdzy
+    // KROK 3: Bramy (wartość 3). Nadpisz odpowiednie kafelki na środkach boków
     // Północna: X: 39-40, Y: 35
     this.mapGrid[39][35] = 3;
     this.mapGrid[40][35] = 3;
@@ -191,7 +198,7 @@ export class MainGame extends Phaser.Scene {
     this.mapGrid[44][39] = 3;
     this.mapGrid[44][40] = 3;
 
-    // Drogi Wewnętrzne (wartość 5): Proste ścieżki łączące bramy z rdzeniem
+    // KROK 4: Drogi Wewnętrzne (wartość 5). Proste ścieżki łączące bramy z rdzeniem
     // Od Północy: X: 39-40, Y: 36-38
     for (let y = 36; y <= 38; y++) {
       this.mapGrid[39][y] = 5;
@@ -216,7 +223,16 @@ export class MainGame extends Phaser.Scene {
       this.mapGrid[x][40] = 5;
     }
 
-    console.log('Centralna twierdza zbudowana');
+    // KROK 5: Rdzeń (wartość 4). Kwadrat 2x2 na samym środku: X: 39 do 40, Y: 39 do 40
+    for (let x = 39; x <= 40; x++) {
+      for (let y = 39; y <= 40; y++) {
+        if (x >= 0 && x < this.mapSize && y >= 0 && y < this.mapSize) {
+          this.mapGrid[x][y] = 4; // 4 = Rdzeń
+        }
+      }
+    }
+
+    console.log('Centralna twierdza z murami zbudowana');
   }
 
   update(time, delta) {
@@ -314,15 +330,19 @@ export class MainGame extends Phaser.Scene {
     const leftX = hoverX - this.halfW;
     const leftY = hoverY;
     
-    // Biały na trawie (0), czerwony na wszystkich pozostałych (> 0)
+    // Zaktualizuj kolory podświetlania według UX
     if (tileType === 0) {
-      // Trawa - białe/jasne podświetlenie
-      this.hoverIndicator.fillStyle(0xffffff, 0.3);
-      this.hoverIndicator.lineStyle(2, 0xcccccc, 0.8);
+      // Zwykły teren pod wieże (Trawa) - SZARY
+      this.hoverIndicator.fillStyle(0x888888, 0.5);
+      this.hoverIndicator.lineStyle(2, 0x666666, 0.8);
+    } else if (tileType === 2) {
+      // Teren Premium (Złota Twierdza) - ZIELONY
+      this.hoverIndicator.fillStyle(0x00ff00, 0.5);
+      this.hoverIndicator.lineStyle(2, 0x00cc00, 0.8);
     } else {
-      // Wszystkie pozostałe (twierdza, bramy, rdzeń, drogi) - czerwone podświetlenie (zakaz budowy)
-      this.hoverIndicator.fillStyle(0xff0000, 0.4);
-      this.hoverIndicator.lineStyle(2, 0xff6666, 0.9);
+      // Teren Niedostępny (3, 4, 5, 6 oraz przyszłe drogi 1) - CZERWONY
+      this.hoverIndicator.fillStyle(0xff0000, 0.5);
+      this.hoverIndicator.lineStyle(2, 0xff6666, 0.8);
     }
     
     // Narysuj wypełniony romb (podświetlenie)
