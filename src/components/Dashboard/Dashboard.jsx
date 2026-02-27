@@ -30,6 +30,14 @@ const Dashboard = () => {
     }
   };
 
+  const handleLaunchGame = () => {
+    if (window.electronAPI && window.electronAPI.launchGame) {
+      window.electronAPI.launchGame();
+    } else {
+      console.error('electronAPI.launchGame nie jest dostępny');
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
@@ -123,7 +131,7 @@ const Dashboard = () => {
 
       {/* Szybkie akcje */}
       <div className="flex flex-wrap gap-4 mb-4">
-        <button className="game-button">
+        <button className="game-button" onClick={handleLaunchGame}>
           Rozpocznij grę
         </button>
         <button className="game-button">

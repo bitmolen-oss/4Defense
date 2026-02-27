@@ -45,6 +45,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Development mode detection
   isDev: process.env.NODE_ENV === 'development',
+  
+  // Game launching
+  launchGame: () => ipcRenderer.send('launch-game'),
 });
 
 // Eksportuj API do zapisywania/odczytywania plików

@@ -5,6 +5,7 @@ const isDev = true; // Zawsze tryb deweloperski dla developmentu
 
 // Zmienne globalne
 let mainWindow = null;
+let gameWindow = null;
 
 // Funkcja tworząca główne okno
 function createWindow() {
@@ -204,6 +205,40 @@ ipcMain.handle('app-version', () => {
 
 ipcMain.handle('app-name', () => {
   return app.getName();
+});
+
+// Game launching
+ipcMain.on('launch-game', () => {
+  if (gameWindow) {
+    gameWindow.focus();
+    return;
+  }
+  
+  gameWindow = new BrowserWindow({
+    width: 1920,
+    height: 1080,
+    fullscreen: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      enableRemoteModule: false,
+    },
+    show: false,
+  });
+  
+  const gameUrl = isDev 
+    ? 'http://localhost:5173/game.html'
+    : `file://${path.join(__dirname, '../public/game.html')}`;
+  
+  gameWindow.loadURL(gameUrl);
+  
+  gameWindow.once('ready-to-show', () => {
+    gameWindow.show();
+  });
+  
+  gameWindow.on('closed', () => {
+    gameWindow = null;
+  });
 });
 
 ipcMain.handle('show-save-dialog', async () => {
