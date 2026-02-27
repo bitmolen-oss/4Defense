@@ -40,6 +40,9 @@ export class MainGame extends Phaser.Scene {
     // Budowa Architektury Centralnej
     this.buildCentralFortress();
 
+    // Generowanie wszystkich dróg proceduralnych
+    this.generateAllProceduralPaths();
+
     // Zoomowanie Scrollem (Mouse Wheel)
     this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
         const currentZoom = this.cameras.main.zoom;
@@ -88,6 +91,10 @@ export class MainGame extends Phaser.Scene {
         switch (tileType) {
           case 0: // Trawa
             this.gridGraphics.lineStyle(2, 0x00ff00, 0.8); // Zielony kontur
+            break;
+          case 1: // Droga Zewnętrzna
+            this.gridGraphics.fillStyle(0x333333, 1); // Ciemnoszary wypełnienie
+            this.gridGraphics.lineStyle(1, 0x222222, 0.8); // Ciemniejszy szary kontur
             break;
           case 2: // Twierdza
             this.gridGraphics.fillStyle(0xffd700, 1); // Złoty wypełnienie
@@ -233,6 +240,104 @@ export class MainGame extends Phaser.Scene {
     }
 
     console.log('Centralna twierdza z murami zbudowana');
+  }
+
+  generateAllProceduralPaths() {
+    // Droga 1: Lewy-Górny (Północna Brama) - Poziomy Wąż
+    let q1y1 = Phaser.Math.Between(2, 6);
+    let q1x1 = Phaser.Math.Between(26, 30);
+    let q1y2 = Phaser.Math.Between(14, 18);
+    let q1x2 = Phaser.Math.Between(6, 10);
+    let q1y3 = Phaser.Math.Between(26, 30); // Zostawia bezpieczny dystans od muru (Y:35)
+    this.drawThickPath([
+        {x: 0, y: q1y1}, 
+        {x: q1x1, y: q1y1}, 
+        {x: q1x1, y: q1y2}, 
+        {x: q1x2, y: q1y2}, 
+        {x: q1x2, y: q1y3}, 
+        {x: 39, y: q1y3}, 
+        {x: 39, y: 34}
+    ]);
+    // Droga 2: Prawy-Górny (Wschodnia Brama) - Pionowy Wąż
+    let q2x1 = Phaser.Math.Between(72, 76);
+    let q2y1 = Phaser.Math.Between(26, 30);
+    let q2x2 = Phaser.Math.Between(60, 64);
+    let q2y2 = Phaser.Math.Between(6, 10);
+    let q2x3 = Phaser.Math.Between(48, 52); // Zostawia bezpieczny dystans od muru (X:44)
+    this.drawThickPath([
+        {x: q2x1, y: 0}, 
+        {x: q2x1, y: q2y1}, 
+        {x: q2x2, y: q2y1}, 
+        {x: q2x2, y: q2y2}, 
+        {x: q2x3, y: q2y2}, 
+        {x: q2x3, y: 39}, 
+        {x: 45, y: 39}
+    ]);
+    // Droga 3: Lewy-Dolny (Zachodnia Brama) - Pionowy Wąż
+    let q3x1 = Phaser.Math.Between(4, 8);
+    let q3y1 = Phaser.Math.Between(48, 52);
+    let q3x2 = Phaser.Math.Between(16, 20);
+    let q3y2 = Phaser.Math.Between(68, 72);
+    let q3x3 = Phaser.Math.Between(28, 32); // Zostawia bezpieczny dystans od muru (X:35)
+    this.drawThickPath([
+        {x: q3x1, y: 78}, 
+        {x: q3x1, y: q3y1}, 
+        {x: q3x2, y: q3y1}, 
+        {x: q3x2, y: q3y2}, 
+        {x: q3x3, y: q3y2}, 
+        {x: q3x3, y: 39}, 
+        {x: 34, y: 39}
+    ]);
+    // Droga 4: Prawy-Dolny (Południowa Brama) - Poziomy Wąż
+    let q4y1 = Phaser.Math.Between(72, 76);
+    let q4x1 = Phaser.Math.Between(48, 52);
+    let q4y2 = Phaser.Math.Between(60, 64);
+    let q4x2 = Phaser.Math.Between(68, 72);
+    let q4y3 = Phaser.Math.Between(48, 52); // Zostawia bezpieczny dystans od muru (Y:44)
+    this.drawThickPath([
+        {x: 78, y: q4y1}, 
+        {x: q4x1, y: q4y1}, 
+        {x: q4x1, y: q4y2}, 
+        {x: q4x2, y: q4y2}, 
+        {x: q4x2, y: q4y3}, 
+        {x: 39, y: q4y3}, 
+        {x: 39, y: 45}
+    ]);
+  }
+
+  drawThickPath(waypoints) {
+    for (let i = 0; i < waypoints.length - 1; i++) {
+        let start = waypoints[i];
+        let end = waypoints[i+1];
+        let currX = start.x;
+        let currY = start.y;
+        
+        while (currX !== end.x || currY !== end.y) {
+            this.place2x2Block(currX, currY);
+            if (currX !== end.x) {
+                currX += (end.x > currX ? 1 : -1);
+            } else if (currY !== end.y) {
+                currY += (end.y > currY ? 1 : -1);
+            }
+        }
+        this.place2x2Block(end.x, end.y);
+    }
+  }
+
+  place2x2Block(x, y) {
+    for (let i = 0; i < 2; i++) {
+      for (let j = 0; j < 2; j++) {
+        let targetX = x + i;
+        let targetY = y + j;
+        // Sprawdzenie granic mapy
+        if (targetX >= 0 && targetX < this.mapSize && targetY >= 0 && targetY < this.mapSize) {
+          // Nadpisujemy TYLKO trawę (0)
+          if (this.mapGrid[targetY][targetX] === 0) {
+            this.mapGrid[targetY][targetX] = 1;
+          }
+        }
+      }
+    }
   }
 
   update(time, delta) {
