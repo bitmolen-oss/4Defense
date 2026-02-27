@@ -48,6 +48,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Game launching
   launchGame: () => ipcRenderer.send('launch-game'),
+  
+  // Game closing
+  closeGame: () => ipcRenderer.send('close-game'),
 });
 
 // Eksportuj API do zapisywania/odczytywania plików

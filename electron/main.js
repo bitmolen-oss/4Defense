@@ -241,6 +241,12 @@ ipcMain.on('launch-game', () => {
   });
 });
 
+// Game closing
+ipcMain.on('close-game', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) win.close();
+});
+
 ipcMain.handle('show-save-dialog', async () => {
   const result = await dialog.showSaveDialog(mainWindow, {
     defaultPath: '4d-save.json',

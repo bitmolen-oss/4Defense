@@ -17,10 +17,31 @@ export class MainGame extends Phaser.Scene {
     this.tileH = 32;
     this.halfW = this.tileW / 2;
     this.halfH = this.tileH / 2;
-    this.mapSize = 40;
+    this.mapSize = 80; // Powiększenie z 40x40 do 80x80
 
-    // Twarde Granice Kamery (Camera Bounds)
-    this.cameras.main.setBounds(-1500, -200, 3000, 1600);
+    // Dynamiczne Granice Kamery (Bounds)
+    const paddingX = 16;
+    const paddingY = 4; // Absolutne minimum
+    const minX = -this.mapSize * this.halfW - paddingX;
+    const minY = -paddingY;
+    const boundWidth = this.mapSize * this.tileW + (paddingX * 2);
+    const boundHeight = this.mapSize * this.tileH + (paddingY * 2);
+    this.cameras.main.setBounds(minX, minY, boundWidth, boundHeight);
+
+    // Zoomowanie Scrollem (Mouse Wheel)
+    this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
+        const currentZoom = this.cameras.main.zoom;
+        let newZoom = currentZoom - deltaY * 0.001; // Im mniejszy mnożnik, tym płynniejszy zoom
+        newZoom = Phaser.Math.Clamp(newZoom, 0.5, 1.5); // Minimalny i maksymalny zoom
+        this.cameras.main.setZoom(newZoom);
+    });
+
+    // Resetowanie Zoomu (Middle Mouse Button)
+    this.input.on('pointerdown', (pointer) => {
+        if (pointer.middleButtonDown()) {
+            this.cameras.main.setZoom(1); // Reset do domyślnej skali
+        }
+    });
 
     // Stwórz obiekt Graphics do rysowania siatki
     this.gridGraphics = this.add.graphics();
@@ -65,14 +86,28 @@ export class MainGame extends Phaser.Scene {
     this.hoverTileY = -1;
     
     // Prędkość kamery (piksele na sekundę)
-    this.cameraSpeed = 200;
+    this.cameraSpeed = 400; // Zwiększona z 200 na 400 (100% szybciej)
     
     // Zadeklaruj klawisze WASD
     this.keys = this.input.keyboard.addKeys('W,A,S,D');
     
+    // Nasłuchiwanie ESC
+    this.input.keyboard.on('keydown-ESC', () => {
+        this.scene.pause();
+        this.scene.launch('PauseMenu');
+    });
+    
+    // Wyliczenie środka izometrycznej mapy
+    const centerX = this.mapOriginX;
+    const centerY = this.mapOriginY + (this.mapSize * this.halfH);
+    // Ustawienie kamery idealnie na środku przy starcie gry
+    this.cameras.main.centerOn(centerX, centerY);
+    
     console.log(`Siatka izometryczna wygenerowana: ${this.mapSize}x${this.mapSize} kratek`);
     console.log(`Rozmiar płótna: ${this.scale.width}x${this.scale.height}`);
     console.log(`Origin mapy: (${this.mapOriginX}, ${this.mapOriginY})`);
+    console.log(`Granice kamery: X=${minX}, Y=${minY}, W=${boundWidth}, H=${boundHeight}`);
+    console.log(`Środek kamery: (${centerX}, ${centerY})`);
   }
 
   update(time, delta) {
