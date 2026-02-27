@@ -21,12 +21,24 @@ export class MainGame extends Phaser.Scene {
 
     // Dynamiczne Granice Kamery (Bounds)
     const paddingX = 16;
-    const paddingY = 4; // Absolutne minimum
+    const paddingY = 20; // Zmniejszone dla mniejszej pustej przestrzeni nad mapą
     const minX = -this.mapSize * this.halfW - paddingX;
     const minY = -paddingY;
     const boundWidth = this.mapSize * this.tileW + (paddingX * 2);
-    const boundHeight = this.mapSize * this.tileH + (paddingY * 2);
+    const boundHeight = this.mapSize * this.tileH + (paddingY * 2) - 40 + 32; // Dodatkowy margines na dole
     this.cameras.main.setBounds(minX, minY, boundWidth, boundHeight);
+
+    // Struktura Danych Mapy (Grid) - całość to trawa (wartość 0)
+    this.mapGrid = [];
+    for (let x = 0; x < this.mapSize; x++) {
+      this.mapGrid[x] = [];
+      for (let y = 0; y < this.mapSize; y++) {
+        this.mapGrid[x][y] = 0; // 0 = trawa
+      }
+    }
+
+    // Budowa Architektury Centralnej
+    this.buildCentralFortress();
 
     // Zoomowanie Scrollem (Mouse Wheel)
     this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
@@ -69,6 +81,34 @@ export class MainGame extends Phaser.Scene {
         const leftX = isoX - this.halfW;
         const leftY = isoY;
         
+        // Pobierz typ kafelka
+        const tileType = this.mapGrid[x][y];
+        
+        // Ustaw styl rysowania w zależności od typu kafelka
+        switch (tileType) {
+          case 0: // Trawa
+            this.gridGraphics.lineStyle(2, 0x00ff00, 0.8); // Zielony kontur
+            break;
+          case 2: // Twierdza
+            this.gridGraphics.fillStyle(0xffd700, 1); // Złoty wypełnienie
+            this.gridGraphics.lineStyle(1, 0xffaa00, 0.8); // Ciemniejszy złoty kontur
+            break;
+          case 3: // Bramy
+            this.gridGraphics.fillStyle(0x0088ff, 1); // Jasnoniebieski wypełnienie
+            this.gridGraphics.lineStyle(1, 0x0066cc, 0.8); // Ciemniejszy niebieski kontur
+            break;
+          case 4: // Rdzeń
+            this.gridGraphics.fillStyle(0x800080, 1); // Fioletowy wypełnienie
+            this.gridGraphics.lineStyle(1, 0x600060, 0.8); // Ciemniejszy fioletowy kontur
+            break;
+          case 5: // Drogi Wewnętrzne
+            this.gridGraphics.fillStyle(0xaaaaaa, 1); // Jasnoszary wypełnienie
+            this.gridGraphics.lineStyle(1, 0x888888, 0.8); // Ciemniejszy szary kontur
+            break;
+          default:
+            this.gridGraphics.lineStyle(2, 0x00ff00, 0.8); // Domyślny zielony
+        }
+        
         // Narysuj romb (kafelek)
         this.gridGraphics.beginPath();
         this.gridGraphics.moveTo(topX, topY);
@@ -76,6 +116,11 @@ export class MainGame extends Phaser.Scene {
         this.gridGraphics.lineTo(bottomX, bottomY);
         this.gridGraphics.lineTo(leftX, leftY);
         this.gridGraphics.closePath();
+        
+        // Wypełnij i obrysuj
+        if (tileType !== 0) {
+          this.gridGraphics.fillPath();
+        }
         this.gridGraphics.strokePath();
       }
     }
@@ -108,6 +153,70 @@ export class MainGame extends Phaser.Scene {
     console.log(`Origin mapy: (${this.mapOriginX}, ${this.mapOriginY})`);
     console.log(`Granice kamery: X=${minX}, Y=${minY}, W=${boundWidth}, H=${boundHeight}`);
     console.log(`Środek kamery: (${centerX}, ${centerY})`);
+  }
+
+  buildCentralFortress() {
+    // Twierdza (wartość 2): Kwadrat 10x10 od X: 35 do 44, Y: 35 do 44
+    for (let x = 35; x <= 44; x++) {
+      for (let y = 35; y <= 44; y++) {
+        if (x >= 0 && x < this.mapSize && y >= 0 && y < this.mapSize) {
+          this.mapGrid[x][y] = 2; // 2 = Twierdza
+        }
+      }
+    }
+
+    // Rdzeń (wartość 4): Kwadrat 2x2 na samym środku: X: 39 do 40, Y: 39 do 40
+    for (let x = 39; x <= 40; x++) {
+      for (let y = 39; y <= 40; y++) {
+        if (x >= 0 && x < this.mapSize && y >= 0 && y < this.mapSize) {
+          this.mapGrid[x][y] = 4; // 4 = Rdzeń
+        }
+      }
+    }
+
+    // Bramy (wartość 3): 4 wejścia 2x1 na brzegach twierdzy
+    // Północna: X: 39-40, Y: 35
+    this.mapGrid[39][35] = 3;
+    this.mapGrid[40][35] = 3;
+    
+    // Południowa: X: 39-40, Y: 44
+    this.mapGrid[39][44] = 3;
+    this.mapGrid[40][44] = 3;
+    
+    // Zachodnia: X: 35, Y: 39-40
+    this.mapGrid[35][39] = 3;
+    this.mapGrid[35][40] = 3;
+    
+    // Wschodnia: X: 44, Y: 39-40
+    this.mapGrid[44][39] = 3;
+    this.mapGrid[44][40] = 3;
+
+    // Drogi Wewnętrzne (wartość 5): Proste ścieżki łączące bramy z rdzeniem
+    // Od Północy: X: 39-40, Y: 36-38
+    for (let y = 36; y <= 38; y++) {
+      this.mapGrid[39][y] = 5;
+      this.mapGrid[40][y] = 5;
+    }
+    
+    // Od Południa: X: 39-40, Y: 41-43
+    for (let y = 41; y <= 43; y++) {
+      this.mapGrid[39][y] = 5;
+      this.mapGrid[40][y] = 5;
+    }
+    
+    // Od Zachodu: X: 36-38, Y: 39-40
+    for (let x = 36; x <= 38; x++) {
+      this.mapGrid[x][39] = 5;
+      this.mapGrid[x][40] = 5;
+    }
+    
+    // Od Wschodu: X: 41-43, Y: 39-40
+    for (let x = 41; x <= 43; x++) {
+      this.mapGrid[x][39] = 5;
+      this.mapGrid[x][40] = 5;
+    }
+
+    console.log('Centralna twierdza zbudowana');
   }
 
   update(time, delta) {
@@ -185,6 +294,9 @@ export class MainGame extends Phaser.Scene {
     
     if (this.hoverTileX === -1 || this.hoverTileY === -1) return;
     
+    // Sprawdź typ kafelka dla koloru podświetlenia
+    const tileType = this.mapGrid[this.hoverTileX][this.hoverTileY];
+    
     // Pozycja podświetlenia (identyczna jak rysowanie)
     const hoverX = this.mapOriginX + (this.hoverTileX - this.hoverTileY) * this.halfW;
     const hoverY = this.mapOriginY + (this.hoverTileX + this.hoverTileY) * this.halfH;
@@ -202,8 +314,18 @@ export class MainGame extends Phaser.Scene {
     const leftX = hoverX - this.halfW;
     const leftY = hoverY;
     
+    // Biały na trawie (0), czerwony na wszystkich pozostałych (> 0)
+    if (tileType === 0) {
+      // Trawa - białe/jasne podświetlenie
+      this.hoverIndicator.fillStyle(0xffffff, 0.3);
+      this.hoverIndicator.lineStyle(2, 0xcccccc, 0.8);
+    } else {
+      // Wszystkie pozostałe (twierdza, bramy, rdzeń, drogi) - czerwone podświetlenie (zakaz budowy)
+      this.hoverIndicator.fillStyle(0xff0000, 0.4);
+      this.hoverIndicator.lineStyle(2, 0xff6666, 0.9);
+    }
+    
     // Narysuj wypełniony romb (podświetlenie)
-    this.hoverIndicator.fillStyle(0xffff00, 0.3); // Żółty z przezroczystością
     this.hoverIndicator.beginPath();
     this.hoverIndicator.moveTo(topX, topY);
     this.hoverIndicator.lineTo(rightX, rightY);
@@ -211,9 +333,6 @@ export class MainGame extends Phaser.Scene {
     this.hoverIndicator.lineTo(leftX, leftY);
     this.hoverIndicator.closePath();
     this.hoverIndicator.fillPath();
-    
-    // Dodaj obramowanie
-    this.hoverIndicator.lineStyle(2, 0xffffff, 0.8);
     this.hoverIndicator.strokePath();
   }
 }
