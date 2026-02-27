@@ -1,0 +1,215 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        // Kolory motywu gry 4 Defense
+        primary: {
+          50: '#f0f9ff',
+          100: '#e0f2fe',
+          200: '#bae6fd',
+          300: '#7dd3fc',
+          400: '#38bdf8',
+          500: '#0ea5e9',
+          600: '#0284c7',
+          700: '#0369a1',
+          800: '#075985',
+          900: '#0c4a6e',
+          950: '#082f49',
+        },
+        secondary: {
+          50: '#f8fafc',
+          100: '#f1f5f9',
+          200: '#e2e8f0',
+          300: '#cbd5e1',
+          400: '#94a3b8',
+          500: '#64748b',
+          600: '#475569',
+          700: '#334155',
+          800: '#1e293b',
+          900: '#0f172a',
+          950: '#020617',
+        },
+        accent: {
+          50: '#fefce8',
+          100: '#fef9c3',
+          200: '#fef08a',
+          300: '#fde047',
+          400: '#facc15',
+          500: '#eab308',
+          600: '#ca8a04',
+          700: '#a16207',
+          800: '#854d0e',
+          900: '#713f12',
+          950: '#422006',
+        },
+        success: {
+          50: '#f0fdf4',
+          100: '#dcfce7',
+          200: '#bbf7d0',
+          300: '#86efac',
+          400: '#4ade80',
+          500: '#22c55e',
+          600: '#16a34a',
+          700: '#15803d',
+          800: '#166534',
+          900: '#14532d',
+          950: '#052e16',
+        },
+        warning: {
+          50: '#fffbeb',
+          100: '#fef3c7',
+          200: '#fde68a',
+          300: '#fcd34d',
+          400: '#fbbf24',
+          500: '#f59e0b',
+          600: '#d97706',
+          700: '#b45309',
+          800: '#92400e',
+          900: '#78350f',
+          950: '#451a03',
+        },
+        error: {
+          50: '#fef2f2',
+          100: '#fee2e2',
+          200: '#fecaca',
+          300: '#fca5a5',
+          400: '#f87171',
+          500: '#ef4444',
+          600: '#dc2626',
+          700: '#b91c1c',
+          800: '#991b1b',
+          900: '#7f1d1d',
+          950: '#450a0a',
+        },
+        // Kolory gry (zgodne z assets.js)
+        'game-background': '#1a1a2e',
+        'game-grid': '#16213e',
+        'game-grid-lines': '#0f3460',
+        'player-tower': '#00ff41',
+        'player-fortress': '#0099ff',
+        'player-gate': '#0066cc',
+        'player-worker': '#ffaa00',
+        'enemy-minion': '#ff3333',
+        'enemy-boss': '#cc0000',
+        'game-path': '#8b4513',
+        'zone-outer': '#1a1a2e',
+        'zone-inner': '#16213e',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Consolas', 'monospace'],
+        game: ['Press Start 2P', 'cursive'],
+      },
+      animation: {
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'bounce-slow': 'bounce 2s infinite',
+        'spin-slow': 'spin 3s linear infinite',
+        'wiggle': 'wiggle 1s ease-in-out infinite',
+        'glow': 'glow 2s ease-in-out infinite alternate',
+        'slide-up': 'slideUp 0.3s ease-out',
+        'slide-down': 'slideDown 0.3s ease-out',
+        'fade-in': 'fadeIn 0.3s ease-out',
+        'fade-out': 'fadeOut 0.3s ease-out',
+        'scale-in': 'scaleIn 0.2s ease-out',
+        'scale-out': 'scaleOut 0.2s ease-out',
+      },
+      keyframes: {
+        wiggle: {
+          '0%, 100%': { transform: 'rotate(-3deg)' },
+          '50%': { transform: 'rotate(3deg)' },
+        },
+        glow: {
+          '0%': { boxShadow: '0 0 5px rgba(34, 197, 94, 0.5)' },
+          '100%': { boxShadow: '0 0 20px rgba(34, 197, 94, 0.8)' },
+        },
+        slideUp: {
+          '0%': { transform: 'translateY(10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        slideDown: {
+          '0%': { transform: 'translateY(-10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        fadeOut: {
+          '0%': { opacity: '1' },
+          '100%': { opacity: '0' },
+        },
+        scaleIn: {
+          '0%': { transform: 'scale(0.9)', opacity: '0' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        scaleOut: {
+          '0%': { transform: 'scale(1)', opacity: '1' },
+          '100%': { transform: 'scale(0.9)', opacity: '0' },
+        },
+      },
+      spacing: {
+        '18': '4.5rem',
+        '88': '22rem',
+        '128': '32rem',
+      },
+      borderRadius: {
+        '4xl': '2rem',
+        '5xl': '2.5rem',
+      },
+      boxShadow: {
+        'game': '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)',
+        'game-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2)',
+        'inner-game': 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)',
+      },
+      backdropBlur: {
+        xs: '2px',
+      },
+    },
+  },
+  plugins: [
+    // Plugin dla custom komponentów gry
+    function({ addUtilities, theme }) {
+      addUtilities({
+        '.game-border': {
+          border: '2px solid',
+          borderColor: theme('colors.game-grid-lines'),
+          borderRadius: theme('borderRadius.md'),
+        },
+        '.game-button': {
+          backgroundColor: theme('colors.primary.600'),
+          color: theme('colors.white'),
+          padding: `${theme('spacing.3')} ${theme('spacing.6')}`,
+          borderRadius: theme('borderRadius.md'),
+          fontWeight: theme('fontWeight.semibold'),
+          transition: 'all 0.2s ease-in-out',
+          '&:hover': {
+            backgroundColor: theme('colors.primary.700'),
+            transform: 'translateY(-1px)',
+          },
+          '&:active': {
+            transform: 'translateY(0)',
+          },
+        },
+        '.game-panel': {
+          backgroundColor: theme('colors.game-background'),
+          border: `1px solid ${theme('colors.game-grid-lines')}`,
+          borderRadius: theme('borderRadius.lg'),
+          padding: theme('spacing.4'),
+          boxShadow: theme('boxShadow.game'),
+        },
+        '.neon-text': {
+          textShadow: `0 0 10px ${theme('colors.success.400')}, 0 0 20px ${theme('colors.success.400')}`,
+        },
+        '.cyber-border': {
+          border: `1px solid ${theme('colors.primary.400')}`,
+          boxShadow: `0 0 10px ${theme('colors.primary.400')}`,
+        },
+      });
+    },
+  ],
+};
