@@ -70,6 +70,16 @@ export class MainGame extends Phaser.Scene {
     // Zmienna aktywnego narzędzia (zamiast buildMode)
     this.activeTool = null; // może przyjmować: null, 'standard', 'premium', 'sell'
     
+    // Symulacja danych z Panelu (docelowo 1 na start)
+    this.unlockedGates = 4; // Symulacja danych z Panelu (docelowo 1 na start)
+    
+    // Generator Tekstury Konfetti
+    let g = this.make.graphics({x:0, y:0, add:false});
+    g.fillStyle(0xffffff, 1);
+    g.fillRect(0, 0, 6, 6);
+    g.generateTexture('confettiParticle', 6, 6);
+    g.destroy();
+    
     // Obsługa klawisza B - przełączanie panelu UI
     this.input.keyboard.on('keydown-B', () => { 
         // Wyślij sygnał do UIScene, aby pokazała lub ukryła panel budowy
@@ -104,6 +114,29 @@ export class MainGame extends Phaser.Scene {
                     return; // Zignoruj kliknięcie, wież premium nie można sprzedać
                 }
                 
+                // NISZCZENIE BRAMY (Ryzyko za Nagrodę)
+                if (tileType === 3) {
+                    let tilesToDestroy = [{x: tx, y: ty}];
+                    if (tx > 0 && this.mapGrid[ty][tx-1] === 3) tilesToDestroy.push({x: tx-1, y: ty});
+                    if (tx + 1 < this.mapSize && this.mapGrid[ty][tx+1] === 3) tilesToDestroy.push({x: tx+1, y: ty});
+                    if (ty > 0 && this.mapGrid[ty-1][tx] === 3) tilesToDestroy.push({x: tx, y: ty-1});
+                    if (ty + 1 < this.mapSize && this.mapGrid[ty+1][tx] === 3) tilesToDestroy.push({x: tx, y: ty+1});
+                    
+                    let centerIsoX = 0, centerIsoY = 0;
+                    tilesToDestroy.forEach(t => {
+                        this.mapGrid[t.y][t.x] = 1; // Brama zmienia się w płaską drogę wpuszczającą potwory
+                        centerIsoX += this.mapOriginX + (t.x - t.y) * this.halfW;
+                        centerIsoY += this.mapOriginY + (t.x + t.y) * this.halfH;
+                    });
+                    
+                    centerIsoX /= tilesToDestroy.length;
+                    centerIsoY /= tilesToDestroy.length;
+                    
+                    this.triggerConfetti(centerIsoX, centerIsoY);
+                    this.redrawMap();
+                    return;
+                }
+                
                 // SPRZEDAŻ STANDARDOWEJ WIEŻY (Usuwamy cały blok 2x2)
                 if (tileType === 10) {
                     // Znajdź lewy górny róg (origin) tej wieży
@@ -123,6 +156,31 @@ export class MainGame extends Phaser.Scene {
                     this.redrawMap();
                 }
                 return;
+            }
+            
+            // Złożony Limit Wież Premium (Zgodny z GDD)
+            if (this.activeTool === 'premium') {
+                // 1. BLOKADA ŚRODKÓW (Anti-Griefing):
+                // Zapobiega postawieniu wieży na środku 3x3, co zablokowałoby całą ćwiartkę.
+                if ((tx === 37 && ty === 37) || 
+                    (tx === 42 && ty === 37) || 
+                    (tx === 37 && ty === 42) || 
+                    (tx === 42 && ty === 42)) {
+                    console.log('Nie można budować na środku ćwiartki - blokada!');
+                    return; 
+                }
+                
+                // 2. Sprawdź, czy ćwiartka jest odblokowana przez zniszczenie przypisanej bramy
+                if (!this.isQuadrantUnlocked(tx, ty)) {
+                    console.log('Musisz zniszczyć przypisaną bramę, aby budować w tej ćwiartce!');
+                    return;
+                }
+                
+                // 3. Sprawdź, czy w tej ćwiartce nie ma już 2 wież (limit pojemności)
+                if (this.countPremiumInQuadrant(tx, ty) >= 2) {
+                    console.log('Osiągnięto limit 2 wież w tej ćwiartce!');
+                    return;
+                }
             }
             
             // Stawianie wieży
@@ -263,6 +321,75 @@ export class MainGame extends Phaser.Scene {
     graphics.beginPath(); graphics.moveTo(bottomP.x, bottomP.y); graphics.lineTo(rightP.x, rightP.y); graphics.lineTo(centerP.x, centerP.y); graphics.closePath(); graphics.fillPath(); graphics.strokePath();
   }
 
+  triggerConfetti(isoX, isoY) {
+    const emitter = this.add.particles(isoX, isoY, 'confettiParticle', {
+        speed: { min: 100, max: 250 },
+        angle: { min: 200, max: 340 },
+        scale: { start: 1, end: 0 },
+        tint: [ 0xff0000, 0x00ff00, 0x0088ff, 0xffff00, 0xff00ff ],
+        lifespan: 1200,
+        gravityY: 300,
+        quantity: 40,
+        emitting: false
+    });
+    emitter.explode(40);
+    this.time.delayedCall(1500, () => { emitter.destroy(); });
+  }
+
+  countPremiumInQuadrant(tx, ty) {
+    let startX = 0, endX = 0, startY = 0, endY = 0;
+    
+    // Przypisanie X do połówki
+    if (tx >= 36 && tx <= 38) { startX = 36; endX = 38; }
+    else if (tx >= 41 && tx <= 43) { startX = 41; endX = 43; }
+    
+    // Przypisanie Y do połówki
+    if (ty >= 36 && ty <= 38) { startY = 36; endY = 38; }
+    else if (ty >= 41 && ty <= 43) { startY = 41; endY = 43; }
+    
+    // Jeśli kliknięto poza złotymi ćwiartkami, zignoruj
+    if (startX === 0 || startY === 0) return 0;
+    
+    let count = 0;
+    for (let y = startY; y <= endY; y++) {
+        for (let x = startX; x <= endX; x++) {
+            if (this.mapGrid[y][x] === 11) count++;
+        }
+    }
+    return count;
+  }
+
+  isQuadrantUnlocked(tx, ty) {
+    let quad = '';
+    // Ustalanie ćwiartki na podstawie koordynatów złotych pól
+    if (tx >= 36 && tx <= 38 && ty >= 36 && ty <= 38) quad = 'NW';
+    else if (tx >= 41 && tx <= 43 && ty >= 36 && ty <= 38) quad = 'NE';
+    else if (tx >= 36 && tx <= 38 && ty >= 41 && ty <= 43) quad = 'SW';
+    else if (tx >= 41 && tx <= 43 && ty >= 41 && ty <= 43) quad = 'SE';
+    
+    if (quad === '') return false; // Kliknięcie poza złotymi strefami
+    
+    let gateExists = false;
+    
+    // NOWE MAPOWANIE ZGODNE Z PRZEBIEGIEM DRÓG:
+    if (quad === 'SW') {
+        // Lewa Brama odblokowuje Lewą-Dolną (SW)
+        for(let x=30; x<=35; x++) for(let y=39; y<=40; y++) if(this.mapGrid[y][x] === 3) gateExists = true;
+    } else if (quad === 'NW') {
+        // Górna Brama odblokowuje Lewą-Górną (NW)
+        for(let x=39; x<=40; x++) for(let y=30; y<=35; y++) if(this.mapGrid[y][x] === 3) gateExists = true;
+    } else if (quad === 'SE') {
+        // Dolna Brama odblokowuje Prawą-Dolną (SE)
+        for(let x=39; x<=40; x++) for(let y=44; y<=50; y++) if(this.mapGrid[y][x] === 3) gateExists = true;
+    } else if (quad === 'NE') {
+        // Prawa Brama odblokowuje Prawą-Górną (NE)
+        for(let x=44; x<=50; x++) for(let y=39; y<=40; y++) if(this.mapGrid[y][x] === 3) gateExists = true;
+    }
+
+    // Ćwiartka jest odblokowana TYLKO wtedy, gdy przypisana jej brama NIE istnieje (została zniszczona)
+    return !gateExists; 
+  }
+
   isValidPlacement(tx, ty, size) {
     // Sprawdź granice mapy
     if (tx < 0 || ty < 0 || tx + size > this.mapSize || ty + size > this.mapSize) {
@@ -302,6 +429,13 @@ export class MainGame extends Phaser.Scene {
           }
         }
       }
+    }
+    
+    // Limit 2 wież na daną ćwiartkę
+    if (this.activeTool === 'premium') {
+        if (this.countPremiumInQuadrant(tx, ty) >= 2) {
+            return false; // Zwróć false / zablokuj budowę
+        }
     }
     
     return true;
@@ -678,6 +812,29 @@ export class MainGame extends Phaser.Scene {
       // Budowa - pokaż ducha wieży
       let size = (this.activeTool === 'standard') ? 2 : 1;
       let isValid = this.isValidPlacement(tx, ty, size);
+      
+      // Złożony Limit Wież Premium (Zgodny z GDD)
+      if (this.activeTool === 'premium') {
+        // 1. BLOKADA ŚRODKÓW (Anti-Griefing):
+        // Zapobiega postawieniu wieży na środku 3x3, co zablokowałoby całą ćwiartkę.
+        if ((tx === 37 && ty === 37) || 
+            (tx === 42 && ty === 37) || 
+            (tx === 37 && ty === 42) || 
+            (tx === 42 && ty === 42)) {
+          isValid = false; // Podświetl ducha na czerwono
+        }
+        
+        // 2. Sprawdź, czy ćwiartka jest odblokowana przez zniszczenie przypisanej bramy
+        if (!this.isQuadrantUnlocked(tx, ty)) {
+          isValid = false; // Podświetl ducha na czerwono
+        }
+        
+        // 3. Sprawdź, czy w tej ćwiartce nie ma już 2 wież (limit pojemności)
+        if (this.countPremiumInQuadrant(tx, ty) >= 2) {
+          isValid = false; // Podświetl ducha na czerwono
+        }
+      }
+      
       let color = isValid ? 0x00ff00 : 0xff0000; // Zielony jeśli można, czerwony jeśli nie
       
       // Narysuj ducha wieży 2x2 dla standardowej
