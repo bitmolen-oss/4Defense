@@ -19,8 +19,17 @@ export class Enemy extends Phaser.GameObjects.Graphics {
     // Ustawienie Z-Index by potwór nie schował się pod kafelkami 3D
     this.setDepth(1000); // Rysowanie nad całą mapą
     
+    // Tworzymy X-Ray Ghost Overlay
+    this.xrayGraphics = scene.add.graphics();
+    this.xrayGraphics.setAlpha(0.4); // Lekka przezroczystość dla efektu ducha
+    this.xrayGraphics.setDepth(999999); // Zawsze na wierzchu mapy
+    scene.add.existing(this.xrayGraphics);
+    
     // Rysuj przeciwnika jako izometryczną czerwoną kulę
     this.drawEnemy();
+    
+    // Rysuj również ducha
+    this.drawXRayGhost();
   }
   
   drawEnemy() {
@@ -36,6 +45,21 @@ export class Enemy extends Phaser.GameObjects.Graphics {
     this.fillStyle(0xffff00, 1);
     this.fillEllipse(-4, -12, 2, 2);
     this.fillEllipse(4, -12, 2, 2);
+  }
+  
+  drawXRayGhost() {
+    // Rysujemy identycznego potwora jako ducha, ale z przezroczystością
+    this.xrayGraphics.fillStyle(0xff0000, 1);
+    this.xrayGraphics.fillEllipse(0, -10, 16, 24);
+    
+    // Lekkie cieniowanie dla efektu 3D
+    this.xrayGraphics.fillStyle(0xcc0000, 1);
+    this.xrayGraphics.fillEllipse(-2, -8, 8, 12);
+    
+    // Oczy - małe żółte punkty
+    this.xrayGraphics.fillStyle(0xffff00, 1);
+    this.xrayGraphics.fillEllipse(-4, -12, 2, 2);
+    this.xrayGraphics.fillEllipse(4, -12, 2, 2);
   }
   
   update(time, delta) {
@@ -71,5 +95,19 @@ export class Enemy extends Phaser.GameObjects.Graphics {
       this.x += moveX;
       this.y += moveY;
     }
+    
+    // Aktualizacja Z-Indexu dla iluzji 3D
+    this.setDepth(this.y);
+    
+    // Synchronizuj pozycję ducha z oryginalnym potworem
+    this.xrayGraphics.setPosition(this.x, this.y);
+  }
+  
+  destroy() {
+    // Upewnij się, że duch jest również zniszczony!
+    if (this.xrayGraphics) {
+      this.xrayGraphics.destroy();
+    }
+    super.destroy();
   }
 }

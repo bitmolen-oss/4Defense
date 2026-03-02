@@ -62,8 +62,10 @@ export class MainGame extends Phaser.Scene {
         }
     });
 
-    // Stwórz obiekt Graphics do rysowania siatki
-    this.gridGraphics = this.add.graphics();
+    // Rozdzielamy płaski teren od budynków 3D dla poprawnego sortowania głębokości
+    this.groundGraphics = this.add.graphics();
+    this.groundGraphics.setDepth(0); // Ziemia zawsze na samym dole
+    this.buildingsGroup = this.add.group(); // Grupa na obiekty 3D
     
     // Wywołaj metodę rysującą mapę
     this.redrawMap();
@@ -122,6 +124,11 @@ export class MainGame extends Phaser.Scene {
         console.log("Wybrano narzędzie: " + tool);
     });
     
+    // Nasłuchiwacz ruchu myszy - logika przeniesiona do updateHoverTile
+    this.input.on('pointermove', (pointer) => {
+        // Pusty - cała logika blokowania UI jest teraz w updateHoverTile()
+    });
+
     // Logika stawiania wieży (myszka)
     this.input.on('pointerdown', (pointer) => {
         if (!pointer.leftButtonDown() || !this.activeTool) return;
@@ -483,112 +490,60 @@ window.addEventListener('resize', () => {
   }
 
   redrawMap() {
-    // Wyczyść poprzednią mapę
-    this.gridGraphics.clear();
+    this.groundGraphics.clear();
+    this.buildingsGroup.clear(true, true); // Usuń stare budynki 3D przy każdym odświeżeniu
     
-    // Rysuj siatkę izometryczną - używając ujednoliconego origin
     for (let x = 0; x < this.mapSize; x++) {
       for (let y = 0; y < this.mapSize; y++) {
-        // Oblicz środek kafelka WYŁĄCZNIE tak
         const isoX = this.mapOriginX + (x - y) * this.halfW;
         const isoY = this.mapOriginY + (x + y) * this.halfH;
         
-        // Oblicz wierzchołki rombu względem isoX i isoY
         const topX = isoX;
         const topY = isoY - this.halfH;
-        
         const rightX = isoX + this.halfW;
         const rightY = isoY;
-        
         const bottomX = isoX;
         const bottomY = isoY + this.halfH;
-        
         const leftX = isoX - this.halfW;
         const leftY = isoY;
         
-        // Pobierz typ kafelka
         const tileType = this.mapGrid[y][x];
-        
-        // Flaga dla brył 3D
         let is3D = false;
         
-        // Ustaw styl rysowania w zależności od typu kafelka
-        switch (tileType) {
-          case 0: // Trawa
-            this.gridGraphics.lineStyle(2, 0x00ff00, 0.8); // Zielony kontur
-            break;
-          case 1: // Droga Zewnętrzna
-            this.gridGraphics.fillStyle(0x333333, 1); // Ciemnoszary wypełnienie
-            this.gridGraphics.lineStyle(1, 0x222222, 0.8); // Ciemniejszy szary kontur
-            break;
-          case 2: // Twierdza
-            this.gridGraphics.fillStyle(0xffd700, 1); // Złoty wypełnienie
-            this.gridGraphics.lineStyle(1, 0xffaa00, 0.8); // Ciemniejszy złoty kontur
-            break;
-          case 3: // Bramy (Jasnoniebieski)
+        // Domyślnie rysujemy po płaskiej ziemi
+        let g = this.groundGraphics;
+        
+        // Jeśli to budynek 3D (Brama, Rdzeń, Mur, Wieże)
+        if (tileType === 3 || tileType === 4 || tileType === 6 || tileType === 10 || tileType === 11) {
             is3D = true;
-            // Wysokość 1.5 kafelka
-            this.drawIsoBlock(this.gridGraphics, isoX, isoY, this.tileH * 1.5, 0x0088ff, 0x0066cc, 0x004499);
-            break;
-          case 4: // Rdzeń
-            is3D = true;
-            // Płaska fioletowa baza na każdym z 4 kafelków
-            this.gridGraphics.fillStyle(0x4a0080, 1);
-            this.gridGraphics.lineStyle(1, 0x4a0080, 1); // Brak wycieku
-            this.gridGraphics.beginPath();
-            this.gridGraphics.moveTo(topX, topY);
-            this.gridGraphics.lineTo(rightX, rightY);
-            this.gridGraphics.lineTo(bottomX, bottomY);
-            this.gridGraphics.lineTo(leftX, leftY);
-            this.gridGraphics.closePath();
-            this.gridGraphics.fillPath();
-            this.gridGraphics.strokePath();
-            
-            // Kryształ rysujemy TYLKO raz, gdy pętla dotrze do kafelka najbardziej z przodu (X:40, Y:40)
-            if (x === 40 && y === 40) {
-                // Środek izometryczny obszaru 2x2 rdzenia to dokładnie górny wierzchołek kafelka 40x40
-                let crystalX = isoX;
-                let crystalY = isoY - this.halfH; 
-                this.drawLevitatingCrystal(this.gridGraphics, crystalX, crystalY);
-            }
-            break;
-          case 5: // Drogi Wewnętrzne
-            this.gridGraphics.fillStyle(0xaaaaaa, 1); // Jasnoszary wypełnienie
-            this.gridGraphics.lineStyle(1, 0x888888, 0.8); // Ciemniejszy szary kontur
-            break;
-          case 6: // Mury (Szary Kamień)
-            is3D = true;
-            // Wysokość 1.5 kafelka
-            this.drawIsoBlock(this.gridGraphics, isoX, isoY, this.tileH * 1.5, 0x777777, 0x555555, 0x333333);
-            break;
-          case 10: // Wieża Standardowa (Ceglana/Pomarańczowa)
-            is3D = true;
-            // Wysokość = 2 kafelki
-            this.drawIsoBlock(this.gridGraphics, isoX, isoY, this.tileH * 2, 0xff9933, 0xcc6600, 0x994400);
-            break;
-          case 11: // Wieża Premium (Złoty monolit)
-            is3D = true;
-            // Wysokość = 2.5 kafelka (wyższa i smuklejsza)
-            this.drawIsoBlock(this.gridGraphics, isoX, isoY, this.tileH * 2.5, 0xffff66, 0xcccc00, 0x999900);
-            break;
-          default:
-            this.gridGraphics.lineStyle(2, 0x00ff00, 0.8); // Domyślny zielony
+            // Tworzymy osobny obiekt dla poprawnego Z-Sortingu
+            g = this.add.graphics();
+            // Z-Index oparty na dolnym punkcie budynku (bottomY)
+            g.setDepth(bottomY);
+            this.buildingsGroup.add(g);
         }
         
-        // Rysuj płaski romb tylko dla nie-3D kafelków
+        switch (tileType) {
+          case 0: g.lineStyle(2, 0x00ff00, 0.8); break;
+          case 1: g.fillStyle(0x333333, 1); g.lineStyle(1, 0x222222, 0.8); break;
+          case 2: g.fillStyle(0xffd700, 1); g.lineStyle(1, 0xffaa00, 0.8); break;
+          case 3: this.drawIsoBlock(g, isoX, isoY, this.tileH * 1.5, 0x0088ff, 0x0066cc, 0x004499); break;
+          case 4: 
+            g.fillStyle(0x4a0080, 1); g.lineStyle(1, 0x4a0080, 1);
+            g.beginPath(); g.moveTo(topX, topY); g.lineTo(rightX, rightY); g.lineTo(bottomX, bottomY); g.lineTo(leftX, leftY); g.closePath(); g.fillPath(); g.strokePath();
+            if (x === 40 && y === 40) { this.drawLevitatingCrystal(g, isoX, isoY - this.halfH); }
+            break;
+          case 5: g.fillStyle(0xaaaaaa, 1); g.lineStyle(1, 0x888888, 0.8); break;
+          case 6: this.drawIsoBlock(g, isoX, isoY, this.tileH * 1.5, 0x777777, 0x555555, 0x333333); break;
+          case 10: this.drawIsoBlock(g, isoX, isoY, this.tileH * 2, 0xff9933, 0xcc6600, 0x994400); break;
+          case 11: this.drawIsoBlock(g, isoX, isoY, this.tileH * 2.5, 0xffff66, 0xcccc00, 0x999900); break;
+          default: g.lineStyle(2, 0x00ff00, 0.8);
+        }
+        
         if (!is3D) {
-          this.gridGraphics.beginPath();
-          this.gridGraphics.moveTo(topX, topY);
-          this.gridGraphics.lineTo(rightX, rightY);
-          this.gridGraphics.lineTo(bottomX, bottomY);
-          this.gridGraphics.lineTo(leftX, leftY);
-          this.gridGraphics.closePath();
-          
-          // Wypełnij i obrysuj
-          if (tileType !== 0) {
-            this.gridGraphics.fillPath();
-          }
-          this.gridGraphics.strokePath();
+          g.beginPath(); g.moveTo(topX, topY); g.lineTo(rightX, rightY); g.lineTo(bottomX, bottomY); g.lineTo(leftX, leftY); g.closePath();
+          if (tileType !== 0) g.fillPath();
+          g.strokePath();
         }
       }
     }
@@ -862,48 +817,60 @@ window.addEventListener('resize', () => {
       }
     }
     
-    // Aktualizuj podświetlanie kafelka
-    this.updateHoverTile(pointer.worldX, pointer.worldY);
+    // Aktualizuj podświetlanie kafelka (Wymuszenie transformacji kamery)
+    const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    this.updateHoverTile(worldPoint.x, worldPoint.y);
   }
 
   updateHoverTile(worldX, worldY) {
-    // Naprawa Hovera - TEN SAM punkt startowy do matematyki myszki
+    // 1. BEZWZGLĘDNE CZYSZCZENIE NA SAMYM POCZĄTKU KLATKI
+    this.hoverIndicator.clear();
+    
+    const pointer = this.input.activePointer;
+    let isOverUI = false;
+    
+    // Ochrona przed Reactem
+    if (pointer.event && pointer.event.target && pointer.event.target.tagName !== 'CANVAS') {
+        isOverUI = true;
+    }
+    
+    // Ochrona przed panelem Phasera (Dynamiczne pobieranie wymiarów z UIScene)
+    const uiScene = this.scene.get('UIScene');
+    if (!isOverUI && uiScene && uiScene.panelVisible) {
+        if (pointer.x >= uiScene.panelX && pointer.x <= uiScene.panelX + uiScene.panelWidth &&
+            pointer.y >= uiScene.panelY && pointer.y <= uiScene.panelY + uiScene.panelHeight) {
+            isOverUI = true;
+        }
+    }
+    
+    // Jeśli jesteśmy nad UI lub poza płótnem -> przerywamy (marker już wyczyszczony wyżej!)
+    if (isOverUI || !pointer.event || pointer.x < 0 || pointer.y < 0 || pointer.x > this.scale.width || pointer.y > this.scale.height) {
+        this.hoverTileX = -1;
+        this.hoverTileY = -1;
+        return;
+    }
+    
+    // 2. Matematyka izometryczna
     const dx = worldX - this.mapOriginX;
     const dy = worldY - this.mapOriginY;
-    
     const tileX = Math.floor((dy / this.halfH + dx / this.halfW) / 2);
     const tileY = Math.floor((dy / this.halfH - dx / this.halfW) / 2);
     
-    // Sprawdź granice mapy
+    // 3. Aktualizacja pozycji i rysowanie
     if (tileX >= 0 && tileX < this.mapSize && tileY >= 0 && tileY < this.mapSize) {
-      const tileType = this.mapGrid[tileY][tileX];
-      // Jeśli kafelek się zmienił, zaktualizuj podświetlenie
-      if (tileX !== this.hoverTileX || tileY !== this.hoverTileY) {
         this.hoverTileX = tileX;
         this.hoverTileY = tileY;
+        // Marker myszki też musi być poprawnie sortowany w przestrzeni 3D
+        this.hoverIndicator.setDepth(worldY + this.halfH + 1);
         this.drawHoverTile();
-      }
     } else {
-      // Wyczyść podświetlenie jeśli poza siatką
-      if (this.hoverTileX !== -1 || this.hoverTileY !== -1) {
         this.hoverTileX = -1;
         this.hoverTileY = -1;
-        this.hoverIndicator.clear();
-      }
     }
   }
 
   drawHoverTile() {
-    // Wyczyść poprzednie podświetlenie
-    this.hoverIndicator.clear();
-    
     if (this.hoverTileX === -1 || this.hoverTileY === -1) return;
-    
-    // Blokada podświetlania mapy pod UI
-    const pointer = this.input.activePointer;
-    if (pointer.y > this.scale.height - 120 && this.activeTool !== null) {
-      return; // Nie podświetlaj mapy gdy kursor jest nad panelem UI
-    }
     
     // Jeśli wybrano narzędzie budowy lub sprzedaży
     if (this.activeTool === 'standard' || this.activeTool === 'premium' || this.activeTool === 'sell') {
