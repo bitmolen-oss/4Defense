@@ -1,5 +1,6 @@
 // Główna scena gry - implementacja siatki izometrycznej
 import { ASSETS } from '../config/assets.js';
+import { Enemy } from '../classes/Enemy.js';
 
 export class MainGame extends Phaser.Scene {
   constructor() {
@@ -42,6 +43,9 @@ export class MainGame extends Phaser.Scene {
 
     // Generowanie wszystkich dróg proceduralnych
     this.generateAllProceduralPaths();
+    
+    // Wyodrębnij ścieżki dla przeciwników
+    this.extractPaths();
 
     // Zoomowanie Scrollem (Mouse Wheel)
     this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
@@ -73,6 +77,10 @@ export class MainGame extends Phaser.Scene {
     // Symulacja danych z Panelu (docelowo 1 na start)
     this.unlockedGates = 4; // Symulacja danych z Panelu (docelowo 1 na start)
     
+    // Tablice dla systemu przeciwników
+    this.enemies = [];
+    this.enemyPaths = [];
+    
     // Generator Tekstury Konfetti
     let g = this.make.graphics({x:0, y:0, add:false});
     g.fillStyle(0xffffff, 1);
@@ -85,6 +93,28 @@ export class MainGame extends Phaser.Scene {
         // Wyślij sygnał do UIScene, aby pokazała lub ukryła panel budowy
         this.scene.get('UIScene').events.emit('togglePanel');
     });
+    
+    // Testowy spawn przeciwnika - klawisz P
+    this.input.keyboard.on('keydown-P', function() {
+        // Mechanizm awaryjny: jeśli gra zgubiła ścieżki, przelicz je na nowo w momencie kliknięcia
+        if (!this.enemyPaths || this.enemyPaths.length === 0) {
+            console.log('Awaryjne odzyskiwanie ścieżek...');
+            this.extractPaths(); 
+        }
+        
+        // Jeśli nadal nie ma, to znaczy że z algorytmem jest coś nie tak
+        if (!this.enemyPaths || this.enemyPaths.length === 0) {
+            console.error('Krytyczny błąd: Algorytm nie widzi szarych dróg (kafelków 1)!');
+            return;
+        }
+        
+        // Spawnowanie potwora
+        const randomPath = Phaser.Utils.Array.GetRandom(this.enemyPaths);
+        const enemy = new Enemy(this, randomPath);
+        this.add.existing(enemy);
+        this.enemies.push(enemy);
+        console.log('Potwór ruszył na trasę!');
+    }.bind(this)); // <--- Twarde przypisanie kontekstu sceny Phasera
     
     // Odbieraj sygnały z UI
     this.events.on('toolSelected', (tool) => { 
@@ -239,6 +269,17 @@ export class MainGame extends Phaser.Scene {
     console.log(`Origin mapy: (${this.mapOriginX}, ${this.mapOriginY})`);
     console.log(`Granice kamery: X=${minX}, Y=${minY}, W=${boundWidth}, H=${boundHeight}`);
     console.log(`Środek kamery: (${centerX}, ${centerY})`);
+    
+    // OSTATECZNY FIX ROZMIARU OKNA (Natychmiastowy)
+window.addEventListener('resize', () => {
+    const newWidth = window.innerWidth;
+    const newHeight = window.innerHeight;
+    
+    // Natychmiastowe wymuszenie wymiarów bez opóźnienia
+    this.scale.resize(newWidth, newHeight);
+    this.cameras.main.setSize(newWidth, newHeight);
+    this.cameras.main.setBounds(-newWidth * 2, -100, newWidth * 4, (this.mapSize * this.tileH) + 1000);
+});
   }
 
   drawIsoBlock(graphics, isoX, isoY, height, colorTop, colorLeft, colorRight) {
@@ -705,6 +746,72 @@ export class MainGame extends Phaser.Scene {
     }
   }
 
+  extractPaths() {
+    this.enemyPaths = [];
+    let startPoints = [];
+    
+    // 1. Zbieranie punktów startowych z krawędzi mapy
+    for (let y = 0; y < this.mapSize; y++) {
+        for (let x = 0; x < this.mapSize; x++) {
+            if (this.mapGrid[y][x] === 1) {
+                let isEdge = (x <= 1 || y <= 1 || x >= this.mapSize - 2 || y >= this.mapSize - 2);
+                if (isEdge) {
+                    // Zapobiega braniu kilku startów z tej samej drogi
+                    let alreadyAdded = startPoints.some(p => Math.abs(p.x - x) <= 2 && Math.abs(p.y - y) <= 2);
+                    if (!alreadyAdded) {
+                        startPoints.push({x, y});
+                    }
+                }
+            }
+        }
+    }
+    
+    // 2. Algorytm Najkrótszej Ścieżki (BFS) dla każdego startu
+    startPoints.forEach(start => {
+        let queue = [ { x: start.x, y: start.y, path: [ {x: start.x, y: start.y} ] } ];
+        let visited = new Set();
+        visited.add(`${start.x},${start.y}`);
+        
+        let foundPath = null;
+        // Kolejność (Prosto, Prawo, Dół, Lewo) faworyzuje proste linie
+        let directions = [ {x:0,y:-1}, {x:1,y:0}, {x:0,y:1}, {x:-1,y:0} ]; 
+        while(queue.length > 0) {
+            let current = queue.shift();
+            
+            for(let dir of directions) {
+                let nx = current.x + dir.x;
+                let ny = current.y + dir.y;
+                
+                if (nx >= 0 && nx < this.mapSize && ny >= 0 && ny < this.mapSize) {
+                    let tile = this.mapGrid[ny][nx];
+                    
+                    // Brama(3) lub Rdzeń(4) to meta
+                    if (tile === 3 || tile === 4) {
+                        foundPath = [...current.path, {x: nx, y: ny}];
+                        queue = []; // Wyczyść kolejkę, by przerwać while
+                        break; 
+                    }
+                    
+                    if (tile === 1 && !visited.has(`${nx},${ny}`)) {
+                        visited.add(`${nx},${ny}`);
+                        queue.push({
+                            x: nx, 
+                            y: ny, 
+                            path: [...current.path, {x: nx, y: ny}]
+                        });
+                    }
+                }
+            }
+        }
+        
+        if (foundPath) {
+            this.enemyPaths.push(foundPath);
+        }
+    });
+    
+    console.log('Zapisano globalnie ścieżek:', this.enemyPaths.length);
+  }
+
   update(time, delta) {
     const pointer = this.input.activePointer;
     const scrollAmount = (this.cameraSpeed * delta) / 1000; // Normalizuj do FPS
@@ -742,6 +849,17 @@ export class MainGame extends Phaser.Scene {
     // Dolna krawędź
     else if (pointer.y > this.scale.height - edgeThreshold) {
       this.cameras.main.scrollY += scrollAmount;
+    }
+    
+    // Aktualizuj przeciwników
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
+      const enemy = this.enemies[i];
+      if (enemy && enemy.active) {
+        enemy.update(time, delta);
+      } else {
+        // Usuń zniszczonych przeciwników z tablicy
+        this.enemies.splice(i, 1);
+      }
     }
     
     // Aktualizuj podświetlanie kafelka
