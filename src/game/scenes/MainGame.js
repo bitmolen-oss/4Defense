@@ -64,37 +64,84 @@ export class MainGame extends Phaser.Scene {
     // Wywołaj metodę rysującą mapę
     this.redrawMap();
     
-    // Zmienna stanu trybu budowy
-    this.buildMode = false;
+    // Uruchom scenę UI równolegle
+    this.scene.launch('UIScene');
     
-    // Obsługa klawisza B - przełączanie trybu budowy
+    // Zmienna aktywnego narzędzia (zamiast buildMode)
+    this.activeTool = null; // może przyjmować: null, 'standard', 'premium', 'sell'
+    
+    // Obsługa klawisza B - przełączanie panelu UI
     this.input.keyboard.on('keydown-B', () => { 
-        this.buildMode = !this.buildMode; 
-        console.log("Tryb budowy: " + (this.buildMode ? "WŁĄCZONY" : "WYŁĄCZONY"));
+        // Wyślij sygnał do UIScene, aby pokazała lub ukryła panel budowy
+        this.scene.get('UIScene').events.emit('togglePanel');
     });
     
-    // Logika stawiania wieży 2x2 (myszka)
+    // Odbieraj sygnały z UI
+    this.events.on('toolSelected', (tool) => { 
+        this.activeTool = tool; 
+        console.log("Wybrano narzędzie: " + tool);
+    });
+    
+    // Logika stawiania wieży (myszka)
     this.input.on('pointerdown', (pointer) => {
-        if (!pointer.leftButtonDown() || !this.buildMode) return;
+        if (!pointer.leftButtonDown() || !this.activeTool) return;
+        
+        // Blokada stawiania wieży pod UI
+        if (pointer.y > this.scale.height - 120) {
+          return; // Nie stawiaj wież gdy kursor jest nad panelem UI
+        }
 
         if (this.hoverTileX !== -1 && this.hoverTileY !== -1) {
             let tx = this.hoverTileX;
             let ty = this.hoverTileY;
-
-            // Sprawdzamy, czy wieża 2x2 mieści się na mapie i czy wszystkie 4 kafelki to trawa (0)
-            if (tx + 1 < this.mapSize && ty + 1 < this.mapSize) {
-                if (this.mapGrid[ty][tx] === 0 && this.mapGrid[ty][tx+1] === 0 &&
-                    this.mapGrid[ty+1][tx] === 0 && this.mapGrid[ty+1][tx+1] === 0) {
-
-                    // Zmieniamy kafelki na wartość 10 (Wieża)
-                    this.mapGrid[ty][tx] = 10;
-                    this.mapGrid[ty][tx+1] = 10;
-                    this.mapGrid[ty+1][tx] = 10;
-                    this.mapGrid[ty+1][tx+1] = 10;
-
-                    // Odświeżamy mapę, żeby zobaczyć wieżę
+            
+            // Sprzedaż wieży
+            if (this.activeTool === 'sell') {
+                let tileType = this.mapGrid[ty][tx];
+                
+                // ZAKAZ SPRZEDAŻY WIEŻ PREMIUM
+                if (tileType === 11) {
+                    return; // Zignoruj kliknięcie, wież premium nie można sprzedać
+                }
+                
+                // SPRZEDAŻ STANDARDOWEJ WIEŻY (Usuwamy cały blok 2x2)
+                if (tileType === 10) {
+                    // Znajdź lewy górny róg (origin) tej wieży
+                    let originX = tx;
+                    let originY = ty;
+                    if (tx > 0 && this.mapGrid[ty][tx-1] === 10) originX = tx - 1;
+                    if (ty > 0 && this.mapGrid[ty-1][tx] === 10) originY = ty - 1;
+                    
+                    // Bezpieczne czyszczenie obszaru 2x2 (zamiana na trawę)
+                    if (originY + 1 < this.mapSize && originX + 1 < this.mapSize) {
+                        this.mapGrid[originY][originX] = 0;
+                        this.mapGrid[originY][originX+1] = 0;
+                        this.mapGrid[originY+1][originX] = 0;
+                        this.mapGrid[originY+1][originX+1] = 0;
+                    }
+                    
                     this.redrawMap();
                 }
+                return;
+            }
+            
+            // Stawianie wieży
+            let size = (this.activeTool === 'standard') ? 2 : 1;
+            let towerValue = (this.activeTool === 'standard') ? 10 : 11;
+            
+            if (this.isValidPlacement(tx, ty, size)) {
+                // Zaktualizuj mapę
+                for (let x = tx; x < tx + size; x++) {
+                    for (let y = ty; y < ty + size; y++) {
+                        this.mapGrid[y][x] = towerValue;
+                    }
+                }
+                
+                // Odśwież mapę
+                this.redrawMap();
+                console.log("Postawiono " + this.activeTool + " wieżę na pozycji (" + tx + ", " + ty + ")");
+            } else {
+                console.log("Nie można postawić wieży na pozycji (" + tx + ", " + ty + ")");
             }
         }
     });
@@ -185,6 +232,50 @@ export class MainGame extends Phaser.Scene {
     graphics.closePath();
     graphics.fillPath();
     graphics.strokePath();
+  }
+
+  isValidPlacement(tx, ty, size) {
+    // Sprawdź granice mapy
+    if (tx < 0 || ty < 0 || tx + size > this.mapSize || ty + size > this.mapSize) {
+      return false;
+    }
+    
+    // Sprawdź typ terenu i zajętość
+    for (let x = tx; x < tx + size; x++) {
+      for (let y = ty; y < ty + size; y++) {
+        const tileType = this.mapGrid[y][x];
+        
+        // Standardowa wieża wymaga trawy (0)
+        if (this.activeTool === 'standard' && tileType !== 0) {
+          return false;
+        }
+        
+        // Premium wieża wymaga złota (2)
+        if (this.activeTool === 'premium' && tileType !== 2) {
+          return false;
+        }
+        
+        // Sprawdź czy pole nie jest zajęte przez inną wieżę
+        if (tileType === 10 || tileType === 11) {
+          return false;
+        }
+      }
+    }
+    
+    // Sprawdź odstępy (margines 1 kratki dookoła)
+    for (let x = tx - 1; x <= tx + size; x++) {
+      for (let y = ty - 1; y <= ty + size; y++) {
+        if (x >= 0 && x < this.mapSize && y >= 0 && y < this.mapSize) {
+          const tileType = this.mapGrid[y][x];
+          // Jeśli w sąsiedztwie znajduje się inna wieża, zwróć false
+          if (tileType === 10 || tileType === 11) {
+            return false;
+          }
+        }
+      }
+    }
+    
+    return true;
   }
 
   redrawMap() {
@@ -507,7 +598,60 @@ export class MainGame extends Phaser.Scene {
     
     if (this.hoverTileX === -1 || this.hoverTileY === -1) return;
     
-    // Sprawdź typ kafelka dla koloru podświetlenia
+    // Blokada podświetlania mapy pod UI
+    const pointer = this.input.activePointer;
+    if (pointer.y > this.scale.height - 120 && this.activeTool !== null) {
+      return; // Nie podświetlaj mapy gdy kursor jest nad panelem UI
+    }
+    
+    // Jeśli wybrano narzędzie budowy lub sprzedaży
+    if (this.activeTool === 'standard' || this.activeTool === 'premium' || this.activeTool === 'sell') {
+      const tx = this.hoverTileX;
+      const ty = this.hoverTileY;
+      
+      // Sprzedaż - podświetlaj wieże na czerwono
+      if (this.activeTool === 'sell') {
+        const tileType = this.mapGrid[ty][tx];
+        if (tileType === 10 || tileType === 11) {
+          const hoverX = this.mapOriginX + (tx - ty) * this.halfW;
+          const hoverY = this.mapOriginY + (tx + ty) * this.halfH;
+          
+          // Narysuj półprzezroczystą czerwoną wieżę
+          if (tileType === 10) {
+            this.drawIsoBlock(this.hoverIndicator, hoverX, hoverY, this.tileH * 2, 0xff0000, 0xcc0000, 0x990000);
+          } else if (tileType === 11) {
+            this.drawIsoBlock(this.hoverIndicator, hoverX, hoverY, this.tileH * 2.5, 0xff0000, 0xcc0000, 0x990000);
+          }
+        }
+        return;
+      }
+      
+      // Budowa - pokaż ducha wieży
+      let size = (this.activeTool === 'standard') ? 2 : 1;
+      let isValid = this.isValidPlacement(tx, ty, size);
+      let color = isValid ? 0x00ff00 : 0xff0000; // Zielony jeśli można, czerwony jeśli nie
+      
+      // Narysuj ducha wieży 2x2 dla standardowej
+      if (this.activeTool === 'standard') {
+        // Rysuj 4 przylegające słupki w konfiguracji 2x2
+        for (let dx = 0; dx < 2; dx++) {
+          for (let dy = 0; dy < 2; dy++) {
+            const ghostX = this.mapOriginX + ((tx + dx) - (ty + dy)) * this.halfW;
+            const ghostY = this.mapOriginY + ((tx + dx) + (ty + dy)) * this.halfH;
+            this.drawIsoBlock(this.hoverIndicator, ghostX, ghostY, this.tileH * 2, color, color * 0.8, color * 0.6);
+          }
+        }
+      } else if (this.activeTool === 'premium') {
+        // Premium pozostaje pojedynczy 1x1
+        const hoverX = this.mapOriginX + (tx - ty) * this.halfW;
+        const hoverY = this.mapOriginY + (tx + ty) * this.halfH;
+        this.drawIsoBlock(this.hoverIndicator, hoverX, hoverY, this.tileH * 2.5, color, color * 0.8, color * 0.6);
+      }
+      
+      return;
+    }
+    
+    // Domyślne podświetlanie kafelka (gdy nie wybrano narzędzia)
     const tileType = this.mapGrid[this.hoverTileX][this.hoverTileY];
     
     // Pozycja podświetlenia (identyczna jak rysowanie)

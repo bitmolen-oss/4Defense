@@ -1,6 +1,7 @@
 // Główny plik konfiguracyjny silnika Phaser 3
 import { MainGame } from './scenes/MainGame.js';
 import { PauseMenu } from './scenes/PauseMenu.js';
+import { UIScene } from './scenes/UIScene.js';
 
 // Konfiguracja gry
 const config = {
@@ -15,7 +16,7 @@ const config = {
     width: '100%',
     height: '100%'
   },
-  scene: [MainGame, PauseMenu],
+  scene: [MainGame, PauseMenu, UIScene],
   physics: {
     default: 'arcade',
     arcade: {
