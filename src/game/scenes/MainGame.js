@@ -204,6 +204,7 @@ export class MainGame extends Phaser.Scene {
     const topLeftY = isoY - height;
     // Lewa ściana
     graphics.fillStyle(colorLeft, 1);
+    graphics.lineStyle(1, colorLeft, 1); // DODANE
     graphics.beginPath();
     graphics.moveTo(topLeftX, topLeftY);
     graphics.lineTo(topBottomX, topBottomY);
@@ -214,6 +215,7 @@ export class MainGame extends Phaser.Scene {
     graphics.strokePath();
     // Prawa ściana
     graphics.fillStyle(colorRight, 1);
+    graphics.lineStyle(1, colorRight, 1); // DODANE
     graphics.beginPath();
     graphics.moveTo(topBottomX, topBottomY);
     graphics.lineTo(topRightX, topRightY);
@@ -224,6 +226,7 @@ export class MainGame extends Phaser.Scene {
     graphics.strokePath();
     // Górna ściana (Dach)
     graphics.fillStyle(colorTop, 1);
+    graphics.lineStyle(1, colorTop, 1); // DODANE
     graphics.beginPath();
     graphics.moveTo(topTopX, topTopY);
     graphics.lineTo(topRightX, topRightY);
@@ -232,6 +235,32 @@ export class MainGame extends Phaser.Scene {
     graphics.closePath();
     graphics.fillPath();
     graphics.strokePath();
+  }
+
+  drawLevitatingCrystal(graphics, isoX, isoY) {
+    const floatY = isoY - 25; // 25px lewitacji nad ziemią
+    const h = 35; // Wysokość górnej i dolnej połówki
+    const w = 18; // Szerokość
+    const centerOffset = 8; // Wypukłość środka 3D
+    
+    const topP = {x: isoX, y: floatY - h};
+    const bottomP = {x: isoX, y: floatY + h};
+    const leftP = {x: isoX - w, y: floatY};
+    const rightP = {x: isoX + w, y: floatY};
+    const centerP = {x: isoX, y: floatY + centerOffset};
+    
+    // Górna lewa ściana
+    graphics.fillStyle(0xbb33ff, 1); graphics.lineStyle(1, 0xbb33ff, 1);
+    graphics.beginPath(); graphics.moveTo(topP.x, topP.y); graphics.lineTo(leftP.x, leftP.y); graphics.lineTo(centerP.x, centerP.y); graphics.closePath(); graphics.fillPath(); graphics.strokePath();
+    // Górna prawa ściana
+    graphics.fillStyle(0x9900ff, 1); graphics.lineStyle(1, 0x9900ff, 1);
+    graphics.beginPath(); graphics.moveTo(topP.x, topP.y); graphics.lineTo(rightP.x, rightP.y); graphics.lineTo(centerP.x, centerP.y); graphics.closePath(); graphics.fillPath(); graphics.strokePath();
+    // Dolna lewa ściana
+    graphics.fillStyle(0x6600cc, 1); graphics.lineStyle(1, 0x6600cc, 1);
+    graphics.beginPath(); graphics.moveTo(bottomP.x, bottomP.y); graphics.lineTo(leftP.x, leftP.y); graphics.lineTo(centerP.x, centerP.y); graphics.closePath(); graphics.fillPath(); graphics.strokePath();
+    // Dolna prawa ściana
+    graphics.fillStyle(0x440099, 1); graphics.lineStyle(1, 0x440099, 1);
+    graphics.beginPath(); graphics.moveTo(bottomP.x, bottomP.y); graphics.lineTo(rightP.x, rightP.y); graphics.lineTo(centerP.x, centerP.y); graphics.closePath(); graphics.fillPath(); graphics.strokePath();
   }
 
   isValidPlacement(tx, ty, size) {
@@ -321,21 +350,41 @@ export class MainGame extends Phaser.Scene {
             this.gridGraphics.fillStyle(0xffd700, 1); // Złoty wypełnienie
             this.gridGraphics.lineStyle(1, 0xffaa00, 0.8); // Ciemniejszy złoty kontur
             break;
-          case 3: // Bramy
-            this.gridGraphics.fillStyle(0x0088ff, 1); // Jasnoniebieski wypełnienie
-            this.gridGraphics.lineStyle(1, 0x0066cc, 0.8); // Ciemniejszy niebieski kontur
+          case 3: // Bramy (Jasnoniebieski)
+            is3D = true;
+            // Wysokość 1.5 kafelka
+            this.drawIsoBlock(this.gridGraphics, isoX, isoY, this.tileH * 1.5, 0x0088ff, 0x0066cc, 0x004499);
             break;
           case 4: // Rdzeń
-            this.gridGraphics.fillStyle(0x800080, 1); // Fioletowy wypełnienie
-            this.gridGraphics.lineStyle(1, 0x600060, 0.8); // Ciemniejszy fioletowy kontur
+            is3D = true;
+            // Płaska fioletowa baza na każdym z 4 kafelków
+            this.gridGraphics.fillStyle(0x4a0080, 1);
+            this.gridGraphics.lineStyle(1, 0x4a0080, 1); // Brak wycieku
+            this.gridGraphics.beginPath();
+            this.gridGraphics.moveTo(topX, topY);
+            this.gridGraphics.lineTo(rightX, rightY);
+            this.gridGraphics.lineTo(bottomX, bottomY);
+            this.gridGraphics.lineTo(leftX, leftY);
+            this.gridGraphics.closePath();
+            this.gridGraphics.fillPath();
+            this.gridGraphics.strokePath();
+            
+            // Kryształ rysujemy TYLKO raz, gdy pętla dotrze do kafelka najbardziej z przodu (X:40, Y:40)
+            if (x === 40 && y === 40) {
+                // Środek izometryczny obszaru 2x2 rdzenia to dokładnie górny wierzchołek kafelka 40x40
+                let crystalX = isoX;
+                let crystalY = isoY - this.halfH; 
+                this.drawLevitatingCrystal(this.gridGraphics, crystalX, crystalY);
+            }
             break;
           case 5: // Drogi Wewnętrzne
             this.gridGraphics.fillStyle(0xaaaaaa, 1); // Jasnoszary wypełnienie
             this.gridGraphics.lineStyle(1, 0x888888, 0.8); // Ciemniejszy szary kontur
             break;
-          case 6: // Mury
-            this.gridGraphics.fillStyle(0x555555, 1); // Ciemnoszary/kamienny wypełnienie
-            this.gridGraphics.lineStyle(1, 0x333333, 0.8); // Ciemniejszy kamienny kontur
+          case 6: // Mury (Szary Kamień)
+            is3D = true;
+            // Wysokość 1.5 kafelka
+            this.drawIsoBlock(this.gridGraphics, isoX, isoY, this.tileH * 1.5, 0x777777, 0x555555, 0x333333);
             break;
           case 10: // Wieża Standardowa (Ceglana/Pomarańczowa)
             is3D = true;
