@@ -1,4 +1,6 @@
 // Scena interfejsu użytkownika dla wyboru wież - Panel Architekta
+import { useGameStore } from '../../store/useGameStore.js';
+
 export class UIScene extends Phaser.Scene {
   constructor() {
     super({ key: 'UIScene' });
@@ -9,6 +11,9 @@ export class UIScene extends Phaser.Scene {
     this.panelVisible = false;
     this.activeButton = null;
     
+    // Stwórz Top Panel na górze ekranu
+    this.createTopPanel();
+    
     // Stwórz panel na dole ekranu, wyśrodkowany w poziomie
     this.createPanel();
     
@@ -18,6 +23,68 @@ export class UIScene extends Phaser.Scene {
     // Nasłuchuj zdarzenia do pokazywania/ukrywania panelu
     this.events.on('togglePanel', () => {
       this.togglePanel();
+    });
+  }
+
+  createTopPanel() {
+    // Główny kontener panelu
+    this.topPanel = this.add.container(0, 0);
+    this.topPanel.setDepth(1000);
+    
+    const panelHeight = 60;
+    
+    // Tło panelu (dodane do kontenera)
+    const background = this.add.graphics();
+    background.fillStyle(0x333333, 0.95); // Ciemnoszare, 95% przezroczystości
+    background.fillRect(0, 0, this.scale.width, panelHeight);
+    background.lineStyle(1, 0x555555, 0.8);
+    background.strokeRect(0, 0, this.scale.width, panelHeight);
+    this.topPanel.add(background);
+    
+    // Teksty na panelu (dodane do kontenera)
+    const textY = panelHeight / 2;
+    
+    // Lewa strona: Stan konta
+    this.coinsText = this.add.text(60, textY, 'Monety: 0', {
+      fontSize: '18px',
+      fill: '#ffffff',
+      backgroundColor: 'transparent'
+    }).setOrigin(0, 0.5);
+    this.topPanel.add(this.coinsText);
+    
+    // Środek: Fala
+    this.waveText = this.add.text(this.scale.width / 2, textY, 'Fala: 1/10', {
+      fontSize: '20px',
+      fill: '#ffff00',
+      backgroundColor: 'transparent',
+      fontStyle: 'bold'
+    }).setOrigin(0.5, 0.5);
+    this.topPanel.add(this.waveText);
+    
+    // Prawa strona: Timer
+    this.timerText = this.add.text(this.scale.width - 20, textY, 'Kolejna fala za: 30s', {
+      fontSize: '18px',
+      fill: '#ffffff',
+      backgroundColor: 'transparent'
+    }).setOrigin(1, 0.5);
+    this.topPanel.add(this.timerText);
+    
+    // Stan panelu (widoczny/schowany)
+    this.topPanelVisible = true;
+    this.topPanelY = 0;
+    this.topPanelHiddenY = -80; // Schowany całkowicie poza ekran
+    
+    // Niezależny, pływający przycisk strzałki (UCHWYT)
+    this.toggleArrow = this.add.text(5, 0, '▲', {
+      fontSize: '18px',
+      fill: '#ffffff',
+      backgroundColor: '#333333',
+      padding: { left: 10, right: 10, top: 2, bottom: 2 }
+    }).setInteractive({ useHandCursor: true }).setDepth(1001);
+    
+    // Interaktywność strzałki
+    this.toggleArrow.on('pointerdown', () => {
+      this.toggleTopPanel();
     });
   }
 
@@ -245,5 +312,46 @@ export class UIScene extends Phaser.Scene {
       this.setActiveButton(null);
       this.scene.get('MainGame').events.emit('toolSelected', null);
     }
+  }
+
+  toggleTopPanel() {
+    this.topPanelVisible = !this.topPanelVisible;
+    const targetY = this.topPanelVisible ? this.topPanelY : this.topPanelHiddenY;
+    
+    // Zmień tekst niezależnego przycisku
+    this.toggleArrow.setText(this.topPanelVisible ? '▲' : '▼');
+    
+    // Animacja przesuwania kontenera (strzałka jest niezależna!)
+    this.tweens.add({
+      targets: this.topPanel,
+      y: targetY,
+      duration: 300,
+      ease: 'Power2'
+    });
+  }
+
+  update(time, delta) {
+    // Pobierz referencję do MainGame i WaveManager
+    const mainGame = this.scene.get('MainGame');
+    if (!mainGame || !mainGame.waveManager) return;
+    
+    const waveManager = mainGame.waveManager;
+    
+    // Aktualizuj tekst fali
+    this.waveText.setText(`Fala: ${waveManager.currentWave}/10`);
+    
+    // Live Timer - odliczanie co do sekundy
+    if (waveManager.isWaveActive) {
+      this.timerText.setText('Fala w toku');
+    } else if (waveManager.countdownTimer && waveManager.countdownTimer.getRemainingSeconds) {
+      const remainingSeconds = Math.ceil(waveManager.countdownTimer.getRemainingSeconds());
+      this.timerText.setText(`Kolejna fala za: ${remainingSeconds}s`);
+    } else {
+      this.timerText.setText('Kolejna fala za: 30s');
+    }
+    
+    // Aktualizuj stan konta z Zustand
+    const gameState = useGameStore.getState();
+    this.coinsText.setText(`Monety: ${gameState.coins_active || 0}`);
   }
 }

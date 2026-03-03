@@ -1,12 +1,20 @@
 // Klasa Przeciwnika - implementacja izometrycznego potwora
+import { FORMULAS } from '../../utils/formulas.js';
+
 export class Enemy extends Phaser.GameObjects.Graphics {
-  constructor(scene, path) {
+  constructor(scene, path, stats = {}) {
     super(scene);
     
     this.scene = scene;
     this.path = path; // Tablica punktów {x, y} w koordynatach siatki
     this.currentPathIndex = 0;
-    this.speed = 50; // pikseli na sekundę
+    
+    // Statystyki z formulas.js lub domyślne
+    const level = stats.level || 1;
+    this.hp = stats.hp || FORMULAS.enemyHP(level);
+    this.maxHp = this.hp;
+    this.speed = stats.speed || (50 * FORMULAS.enemySpeedMultiplier(level)); // Bazowa 50 px/s * mnożnik
+    this.reward = stats.reward || FORMULAS.enemyReward(level);
     
     // Ustawienie pozycji startowej z pierwszego punktu ścieżki
     if (path && path.length > 0) {
@@ -16,19 +24,19 @@ export class Enemy extends Phaser.GameObjects.Graphics {
       console.log('Spawnuje potwora na koordynatach siatki:', startPoint);
     }
     
-    // Ustawienie Z-Index by potwór nie schował się pod kafelkami 3D
-    this.setDepth(1000); // Rysowanie nad całą mapą
+    // Dynamiczne Z-sorting (potwór porusza się w przestrzeni 3D)
+    this.setDepth(this.y);
     
-    // Tworzymy X-Ray Ghost Overlay
+    // System X-Ray (KRYTYCZNE wg Notatek Technicznych)
     this.xrayGraphics = scene.add.graphics();
     this.xrayGraphics.setAlpha(0.4); // Lekka przezroczystość dla efektu ducha
     this.xrayGraphics.setDepth(999999); // Zawsze na wierzchu mapy
     scene.add.existing(this.xrayGraphics);
     
-    // Rysuj przeciwnika jako izometryczną czerwoną kulę
+    // Rysuj przeciwnika jako czerwoną kulę (greyboxing)
     this.drawEnemy();
     
-    // Rysuj również ducha
+    // Rysuj również ducha X-Ray
     this.drawXRayGhost();
   }
   

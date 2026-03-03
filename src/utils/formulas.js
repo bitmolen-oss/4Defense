@@ -130,5 +130,24 @@ export const FORMULAS = {
     const durationBonus = Math.min(duration / 1800, 0.5); // 30 minut = 50% bonus
     
     return Math.floor(baseExp * (1 + durationBonus));
+  },
+  
+  // === FUNKCJE DLA SPAWNERA POTWORÓW ===
+  
+  // Zwraca HP potwora: P * P
+  getEnemyHP: (P) => P * P,
+  
+  // Zwraca mnożnik prędkości: 0.95 + (P * 0.05)
+  getEnemySpeedMultiplier: (P) => 0.95 + (P * 0.05),
+  
+  // Zwraca nagrodę za zabicie: P * 5
+  getEnemyReward: (P) => P * 5,
+  
+  // Oblicza całkowitą ilość potworów w fali: (10 + (F - 1) * I) * activeGates
+  // gdzie I = 3 + Math.floor(P / 10)
+  getWaveMonsterCount: (P, F, activeGates) => {
+    const I = 3 + Math.floor(P / 10);
+    const baseCount = 10 + (F - 1) * I;
+    return baseCount * activeGates;
   }
 };

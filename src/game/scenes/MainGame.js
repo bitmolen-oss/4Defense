@@ -1,6 +1,7 @@
 // Główna scena gry - implementacja siatki izometrycznej
 import { ASSETS } from '../config/assets.js';
 import { Enemy } from '../classes/Enemy.js';
+import { WaveManager } from '../managers/WaveManager.js';
 
 export class MainGame extends Phaser.Scene {
   constructor() {
@@ -44,9 +45,18 @@ export class MainGame extends Phaser.Scene {
     // Generowanie wszystkich dróg proceduralnych
     this.generateAllProceduralPaths();
     
-    // Wyodrębnij ścieżki dla przeciwników
+    // Inicjalizacja WaveManager
+    this.waveManager = new WaveManager(this);
+    
+    // Wyodrębnij ścieżki dla przeciwników (po inicjalizacji WaveManager)
     this.extractPaths();
-
+    
+    // Zainicjalizuj bezpieczną kopię ścieżek w WaveManager
+    this.waveManager.initPaths(this.enemyPaths);
+    
+    // Uruchom pierwszą falę (zastępuje stary mechanizm testowy klawisz 'P')
+    this.waveManager.startCountdown();
+    
     // Zoomowanie Scrollem (Mouse Wheel)
     this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
         const currentZoom = this.cameras.main.zoom;
@@ -96,28 +106,6 @@ export class MainGame extends Phaser.Scene {
         this.scene.get('UIScene').events.emit('togglePanel');
     });
     
-    // Testowy spawn przeciwnika - klawisz P
-    this.input.keyboard.on('keydown-P', function() {
-        // Mechanizm awaryjny: jeśli gra zgubiła ścieżki, przelicz je na nowo w momencie kliknięcia
-        if (!this.enemyPaths || this.enemyPaths.length === 0) {
-            console.log('Awaryjne odzyskiwanie ścieżek...');
-            this.extractPaths(); 
-        }
-        
-        // Jeśli nadal nie ma, to znaczy że z algorytmem jest coś nie tak
-        if (!this.enemyPaths || this.enemyPaths.length === 0) {
-            console.error('Krytyczny błąd: Algorytm nie widzi szarych dróg (kafelków 1)!');
-            return;
-        }
-        
-        // Spawnowanie potwora
-        const randomPath = Phaser.Utils.Array.GetRandom(this.enemyPaths);
-        const enemy = new Enemy(this, randomPath);
-        this.add.existing(enemy);
-        this.enemies.push(enemy);
-        console.log('Potwór ruszył na trasę!');
-    }.bind(this)); // <--- Twarde przypisanie kontekstu sceny Phasera
-    
     // Odbieraj sygnały z UI
     this.events.on('toolSelected', (tool) => { 
         this.activeTool = tool; 
@@ -146,32 +134,14 @@ export class MainGame extends Phaser.Scene {
             if (this.activeTool === 'sell') {
                 let tileType = this.mapGrid[ty][tx];
                 
+                // MOŻNA SPRZEDAWAĆ TYLKO WIEŻE GRACZA (10 = standardowa, 11 = premium)
+                if (tileType !== 10 && tileType !== 11) {
+                    return; // Zignoruj kliknięcie - to nie jest wieża gracza
+                }
+                
                 // ZAKAZ SPRZEDAŻY WIEŻ PREMIUM
                 if (tileType === 11) {
                     return; // Zignoruj kliknięcie, wież premium nie można sprzedać
-                }
-                
-                // NISZCZENIE BRAMY (Ryzyko za Nagrodę)
-                if (tileType === 3) {
-                    let tilesToDestroy = [{x: tx, y: ty}];
-                    if (tx > 0 && this.mapGrid[ty][tx-1] === 3) tilesToDestroy.push({x: tx-1, y: ty});
-                    if (tx + 1 < this.mapSize && this.mapGrid[ty][tx+1] === 3) tilesToDestroy.push({x: tx+1, y: ty});
-                    if (ty > 0 && this.mapGrid[ty-1][tx] === 3) tilesToDestroy.push({x: tx, y: ty-1});
-                    if (ty + 1 < this.mapSize && this.mapGrid[ty+1][tx] === 3) tilesToDestroy.push({x: tx, y: ty+1});
-                    
-                    let centerIsoX = 0, centerIsoY = 0;
-                    tilesToDestroy.forEach(t => {
-                        this.mapGrid[t.y][t.x] = 1; // Brama zmienia się w płaską drogę wpuszczającą potwory
-                        centerIsoX += this.mapOriginX + (t.x - t.y) * this.halfW;
-                        centerIsoY += this.mapOriginY + (t.x + t.y) * this.halfH;
-                    });
-                    
-                    centerIsoX /= tilesToDestroy.length;
-                    centerIsoY /= tilesToDestroy.length;
-                    
-                    this.triggerConfetti(centerIsoX, centerIsoY);
-                    this.redrawMap();
-                    return;
                 }
                 
                 // SPRZEDAŻ STANDARDOWEJ WIEŻY (Usuwamy cały blok 2x2)
@@ -816,6 +786,9 @@ window.addEventListener('resize', () => {
         this.enemies.splice(i, 1);
       }
     }
+    
+    // Sprawdzaj zakończenie fali na końcu każdej klatki
+    this.waveManager.checkWaveCompletion();
     
     // Aktualizuj podświetlanie kafelka (Wymuszenie transformacji kamery)
     const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
