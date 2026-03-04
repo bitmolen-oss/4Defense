@@ -26,9 +26,6 @@ export class UIScene extends Phaser.Scene {
     // Stwórz panel na dole ekranu, wyśrodkowany w poziomie
     this.createPanel();
     
-    // Stwórz elegancki panel minimapy w prawym dolnym rogu
-    this.createMinimapPanel();
-    
     // Stwórz przyciski z ikonami geometrycznymi
     this.createIconButtons();
     
@@ -99,8 +96,8 @@ export class UIScene extends Phaser.Scene {
       this.toggleTopPanel();
     });
     
-    // Przyciski minimapy (domyślnie ukryte)
-    this.createMinimapButtons();
+    // Stwórz elegancki panel minimapy w prawym dolnym rogu
+    this.createMinimapPanel();
     
     // Nasłuchuj eventu z MainGame
     this.scene.get('MainGame').events.on('toggleMinimapUI', (isVisible) => {
@@ -386,93 +383,6 @@ export class UIScene extends Phaser.Scene {
     this.coinsText.setText(`Monety: ${gameState.coins_active || 0}`);
   }
   
-  createMinimapButtons() {
-    // Kontener na całe UI minimapy - przyklejony do prawego dolnego rogu
-    this.minimapUI = this.add.container(this.scale.width - 250, this.scale.height - 300);
-    
-    // TŁO MINIMAPY - PIERWSZY element = pod spodem
-    const bg = this.add.graphics();
-    bg.fillStyle(0x000000, 0.8);
-    bg.fillRect(this.scale.width - 270, this.scale.height - 270, 250, 250);
-    this.minimapUI.add(bg); // Pierwsze dodanie = pod spodem
-    
-    // Tło kontenera na guziki
-    const containerBg = this.add.graphics();
-    containerBg.fillStyle(0x222222, 0.9);
-    containerBg.fillRoundedRect(0, 0, 120, 70, 8);
-    containerBg.lineStyle(1, 0x555555, 1);
-    containerBg.strokeRoundedRect(0, 0, 120, 70, 8);
-    
-    // Tooltip (dymek)
-    this.tooltip = this.add.text(0, 0, '', {
-      fontSize: '12px',
-      fill: '#ffffff',
-      backgroundColor: '#000000',
-      padding: { left: 6, right: 6, top: 4, bottom: 4 }
-    }).setDepth(1002).setVisible(false);
-    
-    // Przycisk Zasięg - ikona
-    this.rangeIcon = this.add.text(10, 10, '👁', {
-      fontSize: '20px',
-      fill: '#ffffff',
-      backgroundColor: '#444444',
-      padding: { left: 8, right: 8, top: 4, bottom: 4 }
-    }).setInteractive({ useHandCursor: true }).setDepth(1001);
-    
-    this.rangeIcon.on('pointerdown', () => {
-      const mainGame = this.scene.get('MainGame');
-      if (mainGame) {
-        mainGame.showAllRanges = !mainGame.showAllRanges;
-        this.updateButtonColors();
-      }
-    });
-    
-    this.rangeIcon.on('pointerover', () => {
-      this.tooltip.setText('Pokaż Zasięg');
-      this.tooltip.setPosition(this.scale.width - 190, this.scale.height - 315);
-      this.tooltip.setVisible(true);
-    });
-    
-    this.rangeIcon.on('pointerout', () => {
-      this.tooltip.setVisible(false);
-    });
-    
-    // Przycisk Przeładowanie - ikona
-    this.reloadIcon = this.add.text(80, 10, '⏳', {
-      fontSize: '20px',
-      fill: '#ffffff',
-      backgroundColor: '#444444',
-      padding: { left: 8, right: 8, top: 4, bottom: 4 }
-    }).setInteractive({ useHandCursor: true }).setDepth(1001);
-    
-    this.reloadIcon.on('pointerdown', () => {
-      const mainGame = this.scene.get('MainGame');
-      if (mainGame) {
-        mainGame.showAllReloads = !mainGame.showAllReloads;
-        this.updateButtonColors();
-      }
-    });
-    
-    this.reloadIcon.on('pointerover', () => {
-      this.tooltip.setText('Pokaż Przeładowanie');
-      this.tooltip.setPosition(this.scale.width - 110, this.scale.height - 315);
-      this.tooltip.setVisible(true);
-    });
-    
-    this.reloadIcon.on('pointerout', () => {
-      this.tooltip.setVisible(false);
-    });
-    
-    // Dodaj resztę elementów do kontenera (tło już jest pod spodem)
-    this.minimapUI.add([containerBg, this.rangeIcon, this.reloadIcon]);
-    
-    // Domyślnie ukryty
-    this.minimapUI.setVisible(false);
-    
-    // Inicjalizuj kolory
-    this.updateButtonColors();
-  }
-  
   updateButtonColors() {
     const mainGame = this.scene.get('MainGame');
     if (!mainGame) return;
@@ -491,7 +401,7 @@ export class UIScene extends Phaser.Scene {
       this.reloadIcon.setStyle({ fill: '#ffffff', backgroundColor: '#444444' });
     }
   }
-  
+
   createMinimapPanel() {
     const panelW = 260;
     const panelH = 220; // Mniejsza wysokość

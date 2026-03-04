@@ -25,12 +25,18 @@ export class MainGame extends Phaser.Scene {
     this.mapSize = 80; // Powiększenie z 40x40 do 80x80
 
     // Definicja granic kamery - poprawne dla rzutu izometrycznego
-    const mapW = this.mapSize * this.tileW;
-    const mapH = (this.mapSize * this.tileH) / 2;
-    const boundX = -(mapW / 2) - 100;
-    const boundY = -100;
-    const boundWidth = mapW + 200;
-    const boundHeight = mapH + 400;
+    const isoWidth = this.mapSize * this.tileW;
+    const isoHeight = this.mapSize * this.tileH;
+    // Precyzyjne marginesy
+    const marginX = this.tileW; // Dokładnie 1 kratka marginesu z lewej i prawej
+    const marginTop = 150; // Miejsce na górny panel UI
+    const marginBottom = this.tileH + 120; // 1 kratka marginesu z dołu + miejsce na dolny panel
+
+    const boundX = -(isoWidth / 2) - marginX;
+    const boundY = -marginTop;
+    const boundWidth = isoWidth + (marginX * 2);
+    const boundHeight = isoHeight + marginTop + marginBottom;
+
     this.cameras.main.setBounds(boundX, boundY, boundWidth, boundHeight);
 
     // Struktura Danych Mapy (Grid) - całość to trawa (wartość 0)
@@ -127,11 +133,6 @@ export class MainGame extends Phaser.Scene {
     this.events.on('toolSelected', (tool) => { 
         this.activeTool = tool; 
         console.log("Wybrano narzędzie: " + tool);
-    });
-    
-    // Nasłuchiwacz ruchu myszy - logika przeniesiona do updateHoverTile
-    this.input.on('pointermove', (pointer) => {
-        // Pusty - cała logika blokowania UI jest teraz w updateHoverTile()
     });
 
     // Logika stawiania wieży (myszka)
@@ -302,7 +303,21 @@ window.addEventListener('resize', () => {
     // Natychmiastowe wymuszenie wymiarów bez opóźnienia
     this.scale.resize(newWidth, newHeight);
     this.cameras.main.setSize(newWidth, newHeight);
-    this.cameras.main.setBounds(-newWidth * 2, -100, newWidth * 4, (this.mapSize * this.tileH) + 1000);
+    
+    // NASZE precyzyjne granice
+    const isoWidth = this.mapSize * this.tileW;
+    const isoHeight = this.mapSize * this.tileH;
+    // Precyzyjne marginesy
+    const marginX = this.tileW; // Dokładnie 1 kratka marginesu z lewej i prawej
+    const marginTop = 150; // Miejsce na górny panel UI
+    const marginBottom = this.tileH + 120; // 1 kratka marginesu z dołu + miejsce na dolny panel
+    
+    this.cameras.main.setBounds(
+        -(isoWidth / 2) - marginX,
+        -marginTop,
+        isoWidth + (marginX * 2),
+        isoHeight + marginTop + marginBottom
+    );
 });
   }
 
@@ -966,7 +981,6 @@ window.addEventListener('resize', () => {
           const isoX = this.mapOriginX + ((tx + 0.5) - (ty + 0.5)) * this.halfW;
           const isoY = this.mapOriginY + ((tx + 0.5) + (ty + 0.5)) * this.halfH;
           
-          this.hoverIndicator.setDepth(5); // Widoczny na drogach
           this.hoverIndicator.lineStyle(2, 0xffffff, 0.5);
           // Czysta matematyka - ŻADNYCH dynamicznych offsetów
           this.hoverIndicator.strokeEllipse(isoX, isoY, range * 2, range);
