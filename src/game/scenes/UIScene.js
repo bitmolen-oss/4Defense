@@ -11,11 +11,23 @@ export class UIScene extends Phaser.Scene {
     this.panelVisible = false;
     this.activeButton = null;
     
+    // Uniwersalny tooltip (dymek)
+    this.tooltip = this.add.text(0, 0, '', { 
+      fontSize: '14px', 
+      backgroundColor: '#000000', 
+      color: '#ffffff', 
+      padding: {x: 5, y: 5}, 
+      borderRadius: 5 
+    }).setDepth(999999).setVisible(false);
+    
     // Stwórz Top Panel na górze ekranu
     this.createTopPanel();
     
     // Stwórz panel na dole ekranu, wyśrodkowany w poziomie
     this.createPanel();
+    
+    // Stwórz elegancki panel minimapy w prawym dolnym rogu
+    this.createMinimapPanel();
     
     // Stwórz przyciski z ikonami geometrycznymi
     this.createIconButtons();
@@ -85,6 +97,14 @@ export class UIScene extends Phaser.Scene {
     // Interaktywność strzałki
     this.toggleArrow.on('pointerdown', () => {
       this.toggleTopPanel();
+    });
+    
+    // Przyciski minimapy (domyślnie ukryte)
+    this.createMinimapButtons();
+    
+    // Nasłuchuj eventu z MainGame
+    this.scene.get('MainGame').events.on('toggleMinimapUI', (isVisible) => {
+      this.minimapUI.setVisible(isVisible);
     });
   }
 
@@ -239,12 +259,20 @@ export class UIScene extends Phaser.Scene {
     // Nie ustawiamy interaktywności na kontenerze - tylko na tle
     
     // Zmiana koloru przy najechaniu
-    buttonBg.on('pointerover', () => {
+    buttonBg.on('pointerover', (pointer) => {
       if (this.activeButton !== buttonContainer) {
         buttonBg.clear();
         buttonBg.fillStyle(0x555555, 0.9);
         buttonBg.fillRoundedRect(0, 0, size, size, 5);
       }
+      
+      // Tooltip
+      let tooltipText = '';
+      if (toolType === 'standard') tooltipText = 'Wieża';
+      else if (toolType === 'premium') tooltipText = 'Wieża premium';
+      else if (toolType === 'sell') tooltipText = 'Sprzedaj wieżę';
+      
+      this.tooltip.setText(tooltipText).setPosition(pointer.x - 50, pointer.y - 30).setVisible(true);
     });
     
     buttonBg.on('pointerout', () => {
@@ -253,6 +281,9 @@ export class UIScene extends Phaser.Scene {
         buttonBg.fillStyle(0x333333, 0.8);
         buttonBg.fillRoundedRect(0, 0, size, size, 5);
       }
+      
+      // Ukryj tooltip
+      this.tooltip.setVisible(false);
     });
     
     // Kliknięcie przycisku
@@ -353,5 +384,185 @@ export class UIScene extends Phaser.Scene {
     // Aktualizuj stan konta z Zustand
     const gameState = useGameStore.getState();
     this.coinsText.setText(`Monety: ${gameState.coins_active || 0}`);
+  }
+  
+  createMinimapButtons() {
+    // Kontener na całe UI minimapy - przyklejony do prawego dolnego rogu
+    this.minimapUI = this.add.container(this.scale.width - 250, this.scale.height - 300);
+    
+    // TŁO MINIMAPY - PIERWSZY element = pod spodem
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.8);
+    bg.fillRect(this.scale.width - 270, this.scale.height - 270, 250, 250);
+    this.minimapUI.add(bg); // Pierwsze dodanie = pod spodem
+    
+    // Tło kontenera na guziki
+    const containerBg = this.add.graphics();
+    containerBg.fillStyle(0x222222, 0.9);
+    containerBg.fillRoundedRect(0, 0, 120, 70, 8);
+    containerBg.lineStyle(1, 0x555555, 1);
+    containerBg.strokeRoundedRect(0, 0, 120, 70, 8);
+    
+    // Tooltip (dymek)
+    this.tooltip = this.add.text(0, 0, '', {
+      fontSize: '12px',
+      fill: '#ffffff',
+      backgroundColor: '#000000',
+      padding: { left: 6, right: 6, top: 4, bottom: 4 }
+    }).setDepth(1002).setVisible(false);
+    
+    // Przycisk Zasięg - ikona
+    this.rangeIcon = this.add.text(10, 10, '👁', {
+      fontSize: '20px',
+      fill: '#ffffff',
+      backgroundColor: '#444444',
+      padding: { left: 8, right: 8, top: 4, bottom: 4 }
+    }).setInteractive({ useHandCursor: true }).setDepth(1001);
+    
+    this.rangeIcon.on('pointerdown', () => {
+      const mainGame = this.scene.get('MainGame');
+      if (mainGame) {
+        mainGame.showAllRanges = !mainGame.showAllRanges;
+        this.updateButtonColors();
+      }
+    });
+    
+    this.rangeIcon.on('pointerover', () => {
+      this.tooltip.setText('Pokaż Zasięg');
+      this.tooltip.setPosition(this.scale.width - 190, this.scale.height - 315);
+      this.tooltip.setVisible(true);
+    });
+    
+    this.rangeIcon.on('pointerout', () => {
+      this.tooltip.setVisible(false);
+    });
+    
+    // Przycisk Przeładowanie - ikona
+    this.reloadIcon = this.add.text(80, 10, '⏳', {
+      fontSize: '20px',
+      fill: '#ffffff',
+      backgroundColor: '#444444',
+      padding: { left: 8, right: 8, top: 4, bottom: 4 }
+    }).setInteractive({ useHandCursor: true }).setDepth(1001);
+    
+    this.reloadIcon.on('pointerdown', () => {
+      const mainGame = this.scene.get('MainGame');
+      if (mainGame) {
+        mainGame.showAllReloads = !mainGame.showAllReloads;
+        this.updateButtonColors();
+      }
+    });
+    
+    this.reloadIcon.on('pointerover', () => {
+      this.tooltip.setText('Pokaż Przeładowanie');
+      this.tooltip.setPosition(this.scale.width - 110, this.scale.height - 315);
+      this.tooltip.setVisible(true);
+    });
+    
+    this.reloadIcon.on('pointerout', () => {
+      this.tooltip.setVisible(false);
+    });
+    
+    // Dodaj resztę elementów do kontenera (tło już jest pod spodem)
+    this.minimapUI.add([containerBg, this.rangeIcon, this.reloadIcon]);
+    
+    // Domyślnie ukryty
+    this.minimapUI.setVisible(false);
+    
+    // Inicjalizuj kolory
+    this.updateButtonColors();
+  }
+  
+  updateButtonColors() {
+    const mainGame = this.scene.get('MainGame');
+    if (!mainGame) return;
+    
+    // Aktualizuj kolor przycisku Zasięg
+    if (mainGame.showAllRanges) {
+      this.rangeIcon.setStyle({ fill: '#00ff00', backgroundColor: '#004400' });
+    } else {
+      this.rangeIcon.setStyle({ fill: '#ffffff', backgroundColor: '#444444' });
+    }
+    
+    // Aktualizuj kolor przycisku Przeładowanie
+    if (mainGame.showAllReloads) {
+      this.reloadIcon.setStyle({ fill: '#00ff00', backgroundColor: '#004400' });
+    } else {
+      this.reloadIcon.setStyle({ fill: '#ffffff', backgroundColor: '#444444' });
+    }
+  }
+  
+  createMinimapPanel() {
+    const panelW = 260;
+    const panelH = 220; // Mniejsza wysokość
+    const padding = 20;
+    const posX = this.scale.width - panelW - padding;
+    const posY = this.scale.height - panelH - padding;
+    this.minimapUI = this.add.container(posX, posY);
+    
+    // Eleganckie tło panelu (tylko górny pasek i ramka)
+    const bg = this.add.graphics();
+    // Wypełniamy TYLKO górny pasek (miejsce na guziki)
+    bg.fillStyle(0x1a1a1a, 0.95);
+    bg.fillRect(0, 0, panelW, 45); 
+    // Rysujemy TYLKO ramkę dookoła całego panelu (środek jest przezroczysty!)
+    bg.lineStyle(2, 0x444444, 1);
+    bg.strokeRect(0, 0, panelW, panelH);
+    this.minimapUI.add(bg);
+    
+    // Guziki na górze panelu
+    const rangeBtn = this.add.text(15, 10, '👁', { 
+      fontSize: '14px', 
+      backgroundColor: '#333333', 
+      padding: { x: 8, y: 5 }, 
+      borderRadius: 5 
+    }).setInteractive();
+    
+    const reloadBtn = this.add.text(130, 10, '⏳', { 
+      fontSize: '14px', 
+      backgroundColor: '#333333', 
+      padding: { x: 8, y: 5 }, 
+      borderRadius: 5 
+    }).setInteractive();
+    
+    // Obsługa kliknięć
+    rangeBtn.on('pointerdown', () => {
+      const mainGame = this.scene.get('MainGame');
+      mainGame.showAllRanges = !mainGame.showAllRanges;
+      // Jasny zielony, gdy włączone
+      rangeBtn.setStyle({ backgroundColor: mainGame.showAllRanges ? '#00ff00' : '#333333' });
+    });
+    
+    reloadBtn.on('pointerdown', () => {
+      const mainGame = this.scene.get('MainGame');
+      mainGame.showAllReloads = !mainGame.showAllReloads;
+      // Jasny zielony, gdy włączone
+      reloadBtn.setStyle({ backgroundColor: mainGame.showAllReloads ? '#00ff00' : '#333333' });
+    });
+    
+    // Tooltipy
+    rangeBtn.on('pointerover', (pointer) => { 
+      this.tooltip.setText('Zasięg wież').setPosition(pointer.x - 50, pointer.y - 30).setVisible(true); 
+    });
+    rangeBtn.on('pointerout', () => { 
+      this.tooltip.setVisible(false); 
+    });
+    
+    reloadBtn.on('pointerover', (pointer) => { 
+      this.tooltip.setText('Czas przeładowania').setPosition(pointer.x - 50, pointer.y - 30).setVisible(true); 
+    });
+    reloadBtn.on('pointerout', () => { 
+      this.tooltip.setVisible(false); 
+    });
+    
+    this.minimapUI.add([rangeBtn, reloadBtn]);
+    
+    // Domyślnie panel jest ukryty
+    this.minimapUI.setVisible(false);
+    
+    // Nasłuchiwanie na event z MainGame
+    this.scene.get('MainGame').events.on('toggleMinimapUI', (isVisible) => {
+      this.minimapUI.setVisible(isVisible);
+    });
   }
 }

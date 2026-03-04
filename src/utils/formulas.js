@@ -25,8 +25,8 @@ export const FORMULAS = {
   // Siła wieży: 1 × U^2
   towerDamage: (upgradeLevel) => Math.pow(upgradeLevel, 2),
   
-  // Czas strzału: 10.1 - (U × 0.1)
-  towerFireRate: (upgradeLevel) => 10.1 - (upgradeLevel * 0.1),
+  // Czas strzału: 10.1 - (U × 0.1) (minimum 0.1s)
+  towerSpeedSeconds: (upgradeLevel) => Math.max(0.1, 10.1 - (upgradeLevel * 0.1)),
   
   // Zasięg wieży: 95 + (U × 5)
   towerRange: (upgradeLevel) => 95 + (upgradeLevel * 5),

@@ -1,7 +1,10 @@
 // Główna scena gry - implementacja siatki izometrycznej
 import { ASSETS } from '../config/assets.js';
 import { Enemy } from '../classes/Enemy.js';
+import { Tower } from '../classes/Tower.js';
 import { WaveManager } from '../managers/WaveManager.js';
+import { FORMULAS } from '../../utils/formulas.js';
+import { useGameStore } from '../../store/useGameStore.js';
 
 export class MainGame extends Phaser.Scene {
   constructor() {
@@ -21,14 +24,14 @@ export class MainGame extends Phaser.Scene {
     this.halfH = this.tileH / 2;
     this.mapSize = 80; // Powiększenie z 40x40 do 80x80
 
-    // Dynamiczne Granice Kamery (Bounds)
-    const paddingX = 16;
-    const paddingY = 20; // Zmniejszone dla mniejszej pustej przestrzeni nad mapą
-    const minX = -this.mapSize * this.halfW - paddingX;
-    const minY = -paddingY;
-    const boundWidth = this.mapSize * this.tileW + (paddingX * 2);
-    const boundHeight = this.mapSize * this.tileH + (paddingY * 2) - 40 + 32; // Dodatkowy margines na dole
-    this.cameras.main.setBounds(minX, minY, boundWidth, boundHeight);
+    // Definicja granic kamery - poprawne dla rzutu izometrycznego
+    const mapW = this.mapSize * this.tileW;
+    const mapH = (this.mapSize * this.tileH) / 2;
+    const boundX = -(mapW / 2) - 100;
+    const boundY = -100;
+    const boundWidth = mapW + 200;
+    const boundHeight = mapH + 400;
+    this.cameras.main.setBounds(boundX, boundY, boundWidth, boundHeight);
 
     // Struktura Danych Mapy (Grid) - całość to trawa (wartość 0)
     this.mapGrid = [];
@@ -93,6 +96,13 @@ export class MainGame extends Phaser.Scene {
     this.enemies = [];
     this.enemyPaths = [];
     
+    // Tablica dla wież
+    this.towers = [];
+    
+    // Flagi GUI dla wież
+    this.showAllRanges = false; // Domyślnie ukryte zasięgi
+    this.showAllReloads = false; // Domyślnie ukryte paski przeładowania
+    
     // Generator Tekstury Konfetti
     let g = this.make.graphics({x:0, y:0, add:false});
     g.fillStyle(0xffffff, 1);
@@ -104,6 +114,13 @@ export class MainGame extends Phaser.Scene {
     this.input.keyboard.on('keydown-B', () => { 
         // Wyślij sygnał do UIScene, aby pokazała lub ukryła panel budowy
         this.scene.get('UIScene').events.emit('togglePanel');
+    });
+    
+    // Obsługa klawisza M - przełączanie minimapy
+    this.input.keyboard.on('keydown-M', () => {
+      const isVisible = !this.minimap.visible;
+      this.minimap.setVisible(isVisible);
+      this.events.emit('toggleMinimapUI', isVisible);
     });
     
     // Odbieraj sygnały z UI
@@ -151,6 +168,22 @@ export class MainGame extends Phaser.Scene {
                     let originY = ty;
                     if (tx > 0 && this.mapGrid[ty][tx-1] === 10) originX = tx - 1;
                     if (ty > 0 && this.mapGrid[ty-1][tx] === 10) originY = ty - 1;
+                    
+                    // Znajdź i usuń fizyczną wieżę
+                    const towerIsoX = this.mapOriginX + (originX - originY) * this.halfW;
+                    const towerIsoY = this.mapOriginY + (originX + originY) * this.halfH;
+                    
+                    // Znajdź wieżę w tablicy po pozycji
+                    for (let i = this.towers.length - 1; i >= 0; i--) {
+                        const tower = this.towers[i];
+                        const distance = Math.sqrt(Math.pow(tower.x - towerIsoX, 2) + Math.pow(tower.y - towerIsoY, 2));
+                        if (distance < 5) { // Tolerancja 5px
+                            tower.destroy(); // Usuń timer i obiekt
+                            this.towers.splice(i, 1); // Usuń z tablicy
+                            console.log("Sprzedano i usunięto fizyczną wieżę");
+                            break;
+                        }
+                    }
                     
                     // Bezpieczne czyszczenie obszaru 2x2 (zamiana na trawę)
                     if (originY + 1 < this.mapSize && originX + 1 < this.mapSize) {
@@ -202,6 +235,17 @@ export class MainGame extends Phaser.Scene {
                     }
                 }
                 
+                // Stwórz fizyczną wieżę dla standardowych wież
+                if (this.activeTool === 'standard') {
+                    // Oblicz pozycję izometryczną dla wieży
+                    const isoX = this.mapOriginX + (tx - ty) * this.halfW;
+                    const isoY = this.mapOriginY + (tx + ty) * this.halfH;
+                    
+                    const tower = new Tower(this, isoX, isoY);
+                    this.towers.push(tower);
+                    console.log("Stworzono fizyczną wieżę standardową na pozycji (" + tx + ", " + ty + ")");
+                }
+                
                 // Odśwież mapę
                 this.redrawMap();
                 console.log("Postawiono " + this.activeTool + " wieżę na pozycji (" + tx + ", " + ty + ")");
@@ -235,17 +279,20 @@ export class MainGame extends Phaser.Scene {
         }
     });
     
-    // Wyliczenie środka izometrycznej mapy
+    // Wyliczenie środka izometrycznej mapy z marginesem na Top Panel
     const centerX = this.mapOriginX;
-    const centerY = this.mapOriginY + (this.mapSize * this.halfH);
+    const centerY = this.mapOriginY + (this.mapSize * this.halfH) + 70; // +70px margines na Top Panel
     // Ustawienie kamery idealnie na środku przy starcie gry
     this.cameras.main.centerOn(centerX, centerY);
     
     console.log(`Siatka izometryczna wygenerowana: ${this.mapSize}x${this.mapSize} kratek`);
     console.log(`Rozmiar płótna: ${this.scale.width}x${this.scale.height}`);
     console.log(`Origin mapy: (${this.mapOriginX}, ${this.mapOriginY})`);
-    console.log(`Granice kamery: X=${minX}, Y=${minY}, W=${boundWidth}, H=${boundHeight}`);
+    console.log(`Granice kamery: X=${boundX}, Y=${boundY}, W=${boundWidth}, H=${boundHeight}`);
     console.log(`Środek kamery: (${centerX}, ${centerY})`);
+    
+    // Stwórz minimapę w prawym dolnym rogu
+    this.createMinimap();
     
     // OSTATECZNY FIX ROZMIARU OKNA (Natychmiastowy)
 window.addEventListener('resize', () => {
@@ -787,12 +834,20 @@ window.addEventListener('resize', () => {
       }
     }
     
+    // Aktualizuj wieże (paski przeładowania)
+    this.towers.forEach(tower => tower.update(time, delta));
+    
     // Sprawdzaj zakończenie fali na końcu każdej klatki
     this.waveManager.checkWaveCompletion();
     
     // Aktualizuj podświetlanie kafelka (Wymuszenie transformacji kamery)
     const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     this.updateHoverTile(worldPoint.x, worldPoint.y);
+    
+    // Wymuszenie, aby podgląd budowy ZAWSZE był nad wszystkimi budynkami i murami
+    if (this.hoverIndicator) {
+        this.hoverIndicator.setDepth(9999999);
+    }
   }
 
   updateHoverTile(worldX, worldY) {
@@ -833,8 +888,7 @@ window.addEventListener('resize', () => {
     if (tileX >= 0 && tileX < this.mapSize && tileY >= 0 && tileY < this.mapSize) {
         this.hoverTileX = tileX;
         this.hoverTileY = tileY;
-        // Marker myszki też musi być poprawnie sortowany w przestrzeni 3D
-        this.hoverIndicator.setDepth(worldY + this.halfH + 1);
+        
         this.drawHoverTile();
     } else {
         this.hoverTileX = -1;
@@ -905,6 +959,18 @@ window.addEventListener('resize', () => {
             this.drawIsoBlock(this.hoverIndicator, ghostX, ghostY, this.tileH * 2, color, color * 0.8, color * 0.6);
           }
         }
+        
+        // Dodaj podgląd zasięgu dla wieży standardowej
+        if (isValid) {
+          const range = FORMULAS.towerRange(useGameStore.getState().upgrades?.tower_range_lvl || 1);
+          const isoX = this.mapOriginX + ((tx + 0.5) - (ty + 0.5)) * this.halfW;
+          const isoY = this.mapOriginY + ((tx + 0.5) + (ty + 0.5)) * this.halfH;
+          
+          this.hoverIndicator.setDepth(5); // Widoczny na drogach
+          this.hoverIndicator.lineStyle(2, 0xffffff, 0.5);
+          // Czysta matematyka - ŻADNYCH dynamicznych offsetów
+          this.hoverIndicator.strokeEllipse(isoX, isoY, range * 2, range);
+        }
       } else if (this.activeTool === 'premium') {
         // Premium pozostaje pojedynczy 1x1
         const hoverX = this.mapOriginX + (tx - ty) * this.halfW;
@@ -959,5 +1025,27 @@ window.addEventListener('resize', () => {
     this.hoverIndicator.closePath();
     this.hoverIndicator.fillPath();
     this.hoverIndicator.strokePath();
+  }
+  
+  createMinimap() {
+    // Wymiary dopasowane do panelu w UIScene
+    const panelW = 260;
+    const panelH = 220; // Mniejsza wysokość
+    const padding = 20;
+    // Kamera startuje pod paskiem guzików (+45px)
+    const mapX = this.scale.width - panelW - padding;
+    const mapY = this.scale.height - panelH - padding + 45;
+
+    // Szerokość panelu i wysokość pomniejszona o pasek guzików
+    this.minimap = this.cameras.add(mapX, mapY, panelW, panelH - 45)
+      .setZoom(0.04)
+      .setName('minimap')
+      .setScroll(0, 1280); // Wyśrodkuj na mapie
+    
+    // Teraz to kamera rysuje własne ciemne tło!
+    this.minimap.setBackgroundColor('#1a1a1a');
+    
+    // Domyślnie ukryta
+    this.minimap.setVisible(false);
   }
 }
